@@ -1,0 +1,149 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String?
+  createdAt DateTime @default(now())
+  shops     Shop[]
+}
+
+model Shop {
+  id         String        @id @default(cuid())
+  name       String
+  ownerId    String
+  owner      User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  createdAt  DateTime      @default(now())
+  waba       WabaAccount[]
+}
+
+model WabaAccount {
+  id              String        @id @default(cuid())
+  shopId          String
+  shop            Shop          @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  wabaId          String        @unique
+  phoneId         String
+  displayNumber   String
+  encryptedToken  String
+  tokenExpiresAt  DateTime?
+  webhookVerified Boolean       @default(false)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  messages        Message[]
+  templates       Template[]
+  campaigns       Campaign[]
+  conversations   Conversation[]
+  webhookEvents   WebhookEvent[]
+
+  @@index([shopId])
+  @@index([wabaId])
+}
+
+model WebhookEvent {
+  id         String       @id @default(cuid())
+  wabaId     String
+  wabaAccount WabaAccount @relation(fields: [wabaId], references: [wabaId], onDelete: Cascade)
+  rawBody    Json
+  headers    Json
+  receivedAt DateTime     @default(now())
+  processed  Boolean      @default(false)
+  error      String?
+
+  @@index([wabaId])
+  @@index([processed])
+  @@index([receivedAt])
+}
+
+model Conversation {
+  id            String    @id @default(cuid())
+  wabaAccountId String
+  wabaAccount   WabaAccount @relation(fields: [wabaAccountId], references: [id], onDelete: Cascade)
+  contactNumber String
+  lastAt        DateTime  @default(now())
+  unreadCount   Int       @default(0)
+  messages      Message[]
+
+  @@index([wabaAccountId])
+  @@index([wabaAccountId, contactNumber])
+  @@index([lastAt])
+}
+
+model Message {
+  id             String        @id @default(cuid())
+  conversationId String?
+  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  wabaAccountId  String
+  wabaAccount    WabaAccount   @relation(fields: [wabaAccountId], references: [id], onDelete: Cascade)
+  messageId      String?       @unique // Meta message id - unique for deduplication
+  from           String
+  to             String
+  direction      String        // inbound | outbound
+  status         String        // sent|delivered|read|failed|pending
+  body           String?
+  rawPayload     Json?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([wabaAccountId])
+  @@index([conversationId])
+  @@index([createdAt])
+  @@index([messageId])
+  @@index([wabaAccountId, createdAt])
+}
+
+model Template {
+  id            String       @id @default(cuid())
+  wabaAccountId String
+  wabaAccount   WabaAccount  @relation(fields: [wabaAccountId], references: [id], onDelete: Cascade)
+  name          String
+  language      String
+  status        String       // draft | submitted | approved | rejected
+  history       Json?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([wabaAccountId])
+  @@index([status])
+}
+
+model Campaign {
+  id            String        @id @default(cuid())
+  wabaAccountId String
+  wabaAccount   WabaAccount   @relation(fields: [wabaAccountId], references: [id], onDelete: Cascade)
+  templateId    String?
+  contactCount  Int
+  status        String        // created | sending | paused | completed | failed
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  jobs          CampaignJob[]
+
+  @@index([wabaAccountId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model CampaignJob {
+  id         String   @id @default(cuid())
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  toNumber   String
+  status     String   // pending | sent | failed
+  attempts   Int      @default(0)
+  lastError  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([campaignId])
+  @@index([status])
+}
+

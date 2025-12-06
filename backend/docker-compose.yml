@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: evozap-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: evozap
+      MYSQL_USER: evozap
+      MYSQL_PASSWORD: evozappassword
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: evozap-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: evozap-api
+    ports:
+      - "3000:3000"
+    environment:
+      APP_PORT: 3000
+      NODE_ENV: production
+      # Database Configuration (Individual Variables)
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USERNAME: ${DB_USERNAME:-evozap}
+      DB_PASSWORD: ${DB_PASSWORD:-evozappassword}
+      DB_NAME: ${DB_NAME:-evozap}
+      DB_SCHEMA: ${DB_SCHEMA:-public}
+      # Alternative: Use DATABASE_URL directly (will be built from above if not provided)
+      DATABASE_URL: ${DATABASE_URL:-mysql://${DB_USERNAME:-evozap}:${DB_PASSWORD:-evozappassword}@mysql:3306/${DB_NAME:-evozap}?schema=${DB_SCHEMA:-public}}
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-change-this-in-production}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-change-this-32-char-key-in-production}
+      META_APP_ID: ${META_APP_ID}
+      META_APP_SECRET: ${META_APP_SECRET}
+      META_VERIFY_TOKEN: ${META_VERIFY_TOKEN:-default-verify-token}
+      META_API_VERSION: v21.0
+      RATE_LIMIT_DEFAULT: 10
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      FRONTEND_CALLBACK_URL: ${FRONTEND_CALLBACK_URL:-http://localhost:5173/onboarding/callback}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: sh -c "npx prisma migrate deploy && node dist/main"
+
+volumes:
+  mysql_data:
+  redis_data:
+
