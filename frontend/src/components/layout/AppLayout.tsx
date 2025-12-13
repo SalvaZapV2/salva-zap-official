@@ -1,19 +1,10 @@
 import { Outlet, useNavigate } from "react-router-dom";
 import { AppSidebar } from "./AppSidebar";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { Bell, User, LogOut } from "lucide-react";
+import { Bell, LogOut, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import headerLogo from "@/assets/header-logo.png";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/lib/auth";
-import { toast } from "sonner";
+import headerLogo from "@/assets/header-logo.png";
 
 export const AppLayout = () => {
   const { user, logout } = useAuth();
@@ -21,7 +12,6 @@ export const AppLayout = () => {
 
   const handleLogout = () => {
     logout();
-    toast.success("Logged out successfully");
     navigate("/login");
   };
 
@@ -48,28 +38,14 @@ export const AppLayout = () => {
                   <Bell className="h-5 w-5" />
                   <span className="absolute top-1 right-1 h-2 w-2 bg-primary rounded-full" />
                 </Button>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon">
-                      <User className="h-5 w-5" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuLabel>
-                      <div className="flex flex-col space-y-1">
-                        <p className="text-sm font-medium leading-none">Account</p>
-                        <p className="text-xs leading-none text-muted-foreground">
-                          {user?.email || "User"}
-                        </p>
-                      </div>
-                    </DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={handleLogout}>
-                      <LogOut className="mr-2 h-4 w-4" />
-                      <span>Log out</span>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <div className="flex items-center gap-2">
+                  <div className="px-2 py-1 text-sm text-muted-foreground border rounded-lg">
+                    {user?.email || "Usuário"}
+                  </div>
+                  <Button variant="ghost" size="icon" onClick={handleLogout}>
+                    <LogOut className="h-5 w-5" />
+                </Button>
+                </div>
               </div>
             </div>
           </header>

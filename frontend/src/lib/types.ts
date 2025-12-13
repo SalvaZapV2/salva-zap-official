@@ -3,14 +3,6 @@ export interface User {
   email: string;
 }
 
-export interface Shop {
-  id: string;
-  name: string;
-  ownerId: string;
-  createdAt: string;
-  waba?: WabaAccount[];
-}
-
 export interface WabaAccount {
   id: string;
   shopId: string;
@@ -18,14 +10,23 @@ export interface WabaAccount {
   phoneId: string;
   displayNumber: string;
   webhookVerified: boolean;
-  createdAt: string;
-  updatedAt: string;
+  tokenExpiresAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface Shop {
+  id: string;
+  name: string;
+  ownerId: string;
+  createdAt?: string;
+  waba?: WabaAccount[];
 }
 
 export interface Conversation {
   id: string;
   contactNumber: string;
-  lastMessage?: string;
+  lastMessage: string;
   lastMessageAt: string;
   unreadCount: number;
   status?: string;
@@ -33,30 +34,35 @@ export interface Conversation {
 
 export interface Message {
   id: string;
-  direction: 'inbound' | 'outbound';
+  direction: "inbound" | "outbound";
   content: string;
   timestamp: string;
-  status: 'sent' | 'delivered' | 'read' | 'failed' | 'pending';
+  status: string;
 }
+
+export type TemplateStatus = "draft" | "submitted" | "approved" | "rejected";
 
 export interface Template {
   id: string;
   wabaAccountId: string;
   name: string;
   language: string;
-  status: 'draft' | 'submitted' | 'approved' | 'rejected';
-  createdAt: string;
-  updatedAt: string;
+  status: TemplateStatus;
+  history?: Record<string, any> | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
+
+export type TemplateCategory = "MARKETING" | "UTILITY" | "AUTHENTICATION";
 
 export interface Campaign {
   id: string;
   wabaAccountId: string;
   templateId: string | null;
   contactCount: number;
-  status: 'created' | 'sending' | 'paused' | 'completed' | 'failed';
-  createdAt: string;
-  updatedAt: string;
+  status: string;
+  createdAt?: string;
+  updatedAt?: string;
   sentCount?: number;
   deliveredCount?: number;
   readCount?: number;
@@ -71,16 +77,10 @@ export interface CampaignCost {
     messageCount: number;
     costPerUnit: number;
   };
-}
-
-export interface PaginatedResponse<T> {
-  data: T[];
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-  };
+  usdCost: number;
+  brlCost: number;
+  pricingModel: string;
+  contactCount: number;
 }
 
 export interface DashboardStats {
@@ -92,4 +92,14 @@ export interface DashboardStats {
   queue_size: number;
   delivery_rate: number;
   read_rate: number;
+}
+
+export interface PaginatedResponse<T> {
+  data: T[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
 }

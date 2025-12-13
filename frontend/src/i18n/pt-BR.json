@@ -1,0 +1,409 @@
+{
+  "common": {
+    "loading": "Carregando...",
+    "save": "Salvar",
+    "cancel": "Cancelar",
+    "delete": "Excluir",
+    "edit": "Editar",
+    "search": "Buscar",
+    "filter": "Filtrar",
+    "export": "Exportar",
+    "import": "Importar",
+    "refresh": "Atualizar",
+    "close": "Fechar",
+    "back": "Voltar",
+    "next": "Próximo",
+    "previous": "Anterior",
+    "confirm": "Confirmar",
+    "yes": "Sim",
+    "no": "Não",
+    "viewDetails": "Ver Detalhes",
+    "sent": "Enviado",
+    "delivered": "Entregue"
+  },
+  "nav": {
+    "dashboard": "Painel Inicial",
+    "inbox": "Conversas",
+    "templates": "Mensagens Aprovadas",
+    "campaigns": "Campanhas",
+    "onboarding": "Conectar WhatsApp",
+    "analytics": "Relatórios",
+    "settings": "Configurações",
+    "connectWhatsapp": "Conexão WhatsApp"
+  },
+  "dashboard": {
+    "title": "Painel Inicial",
+    "subtitle": "Acompanhe o desempenho das suas mensagens em tempo real",
+    "newCampaignButton": "Nova Campanha",
+    "stats": {
+      "messagesSent24h": "Mensagens Enviadas (24h)",
+      "delivered24h": "Entregues (24h)",
+      "read24h": "Lidas (24h)",
+      "failed24h": "Falhas (24h)",
+      "activeConversations": "Conversas Ativas",
+      "queueSize": "Tamanho da Fila",
+      "avgResponseTime": "Tempo Médio de Resposta",
+      "deliveryRate": "taxa de entrega",
+      "readRate": "taxa de leitura",
+      "fromYesterday": "em relação a ontem"
+    },
+    "recentCampaigns": "Campanhas Recentes",
+    "noCampaigns": "Nenhuma campanha criada ainda",
+    "status": {
+      "running": "enviando",
+      "completed": "concluída",
+      "scheduled": "agendada"
+    }
+  },
+  "inbox": {
+    "title": "Conversas",
+    "subtitle": "Gerencie suas conversas com clientes",
+    "searchPlaceholder": "Buscar conversas...",
+    "messagePlaceholder": "Digite sua mensagem...",
+    "within24hWindow": "Dentro da janela de 24h",
+    "sendHint": "Pressione Enter para enviar, Shift+Enter para nova linha",
+    "filters": {
+      "all": "Todas",
+      "unread": "Não Lidas",
+      "open": "Abertas",
+      "closed": "Fechadas"
+    },
+    "noConversations": "Nenhuma conversa encontrada",
+    "selectConversation": "Selecione uma conversa para começar",
+    "send": "Enviar",
+    "typing": "digitando..."
+  },
+  "templates": {
+    "title": "Mensagens Aprovadas pelo WhatsApp (Templates)",
+    "subtitle": "Gerencie suas mensagens pré-aprovadas para envio em massa",
+    "searchPlaceholder": "Buscar mensagens por nome, categoria...",
+    "createButton": "Criar Mensagem",
+    "noTemplates": "Você ainda não possui templates aprovados. Clique em Criar Mensagem para enviar templates à Meta.",
+    "allStatus": "Todos os Status",
+    "allCategories": "Todas as Categorias",
+    "created": "Criado em",
+    "copyContent": "Copiar conteúdo",
+    "useInCampaign": "Usar em campanha",
+    "status": {
+      "draft": "rascunho",
+      "submitted": "em análise",
+      "approved": "aprovada",
+      "rejected": "rejeitada"
+    },
+    "category": {
+      "MARKETING": "Marketing",
+      "UTILITY": "Transacional",
+      "AUTHENTICATION": "Autenticação"
+    },
+    "categoryDescription": {
+      "MARKETING": "Promoções, ofertas e novidades",
+      "UTILITY": "Confirmações, atualizações e notificações",
+      "AUTHENTICATION": "Códigos de verificação e segurança"
+    },
+    "details": {
+      "name": "Nome da Mensagem",
+      "language": "Idioma",
+      "category": "Categoria",
+      "status": "Status",
+      "header": "Cabeçalho",
+      "body": "Corpo da Mensagem",
+      "buttons": "Botões",
+      "preview": "Pré-visualização"
+    },
+    "generator": {
+      "title": "Criar Mensagem (Template Oficial)",
+      "subtitle": "Descreva sua mensagem e a IA gerará variações para aprovação",
+      "objective": "Objetivo da Mensagem",
+      "objectivePlaceholder": "Ex: Confirmar pedido de compra com número do pedido e prazo de entrega",
+      "categoryLabel": "Categoria",
+      "toneLabel": "Tom da Mensagem",
+      "tone": {
+        "formal": "Formal",
+        "neutral": "Neutro",
+        "friendly": "Amigável"
+      },
+      "generate": "Gerar mensagens com IA",
+      "generating": "Gerando variações...",
+      "variations": "Variações Geradas pela IA",
+      "variationsSubtitle": "Selecione as versões que deseja enviar para aprovação da Meta",
+      "editTemplate": "Editar",
+      "deleteTemplate": "Excluir",
+      "submitTemplate": "Enviar para Aprovação",
+      "submitting": "Enviando...",
+      "backToList": "Voltar para Mensagens Aprovadas",
+      "variablesDetected": "Variáveis detectadas",
+      "previewMobile": "Preview Mobile",
+      "regenerate": "Regerar"
+    }
+  },
+  "campaigns": {
+    "title": "Campanhas de Envio",
+    "subtitle": "Crie e acompanhe suas campanhas de mensagens em massa",
+    "createButton": "Criar Nova Campanha",
+    "noCampaigns": "Nenhuma campanha criada ainda",
+    "status": {
+      "draft": "Rascunho",
+      "scheduled": "Agendada",
+      "running": "Enviando",
+      "completed": "Concluída",
+      "paused": "Pausada"
+    },
+    "stats": {
+      "total": "Total de Contatos",
+      "sent": "Enviadas",
+      "delivered": "Entregues",
+      "read": "Lidas",
+      "failed": "Falhas"
+    }
+  },
+  "campaign": {
+    "create": {
+      "title": "Criar Nova Campanha",
+      "subtitle": "Envie uma mensagem oficial para sua lista de clientes de forma simples, rápida e segura.",
+      "details": "Detalhes da Campanha",
+      "name": "Nome da Campanha",
+      "namePlaceholder": "Ex: Promoção Black Friday 2024",
+      "template": "Mensagem Aprovada pelo WhatsApp (Template)",
+      "templatePlaceholder": "Escolha uma mensagem",
+      "templateCategory": "Categoria",
+      "country": "País de Destino",
+      "countryPlaceholder": "Selecione o país",
+      "contacts": "Lista de Contatos",
+      "contactsPlaceholder": "Digite os números de telefone (um por linha)\n+5511999999999\n+5511988888888\n+5511977777777",
+      "contactsDetected": "contato(s) detectado(s)",
+      "contactsEmpty": "Digite um número por linha",
+      "sendSpeed": "Velocidade de Envio",
+      "sendSpeedFast": "Rápida",
+      "sendSpeedModerate": "Moderada",
+      "sendSpeedSafe": "Segura",
+      "schedule": "Agendamento (opcional)",
+      "scheduleNow": "Enviar Agora",
+      "scheduleLater": "Agendar para Depois",
+      "scheduleDate": "Data e Hora",
+      "saveAndContinue": "Salvar e Continuar",
+      "sendNow": "Enviar Agora",
+      "scheduleButton": "Agendar",
+      "createCampaign": "Criar Campanha"
+    },
+    "cost": {
+      "title": "💰 Custo Estimado da Campanha",
+      "category": "Categoria da mensagem",
+      "contactCount": "Quantidade de contatos",
+      "unitPrice": "Preço por envio (Meta)",
+      "totalUsd": "Total estimado (USD)",
+      "totalBrl": "Total estimado (BRL)",
+      "priceUpdatedAt": "Preços atualizados em",
+      "breakdown": "Detalhamento por País",
+      "notes": "💡 Notas sobre Preços:",
+      "notesList": [
+        "Preços oficiais da Meta WhatsApp",
+        "Taxa de câmbio: 1 USD = 5.85 BRL",
+        "Custo final pode variar por região"
+      ],
+      "selectTemplate": "Selecione uma mensagem e adicione contatos para ver o custo estimado da sua campanha.",
+      "calculating": "Calculando custo...",
+      "error": "Não foi possível calcular o custo agora. Tente novamente em alguns segundos."
+    },
+    "review": {
+      "title": "Revisar e Confirmar Envio",
+      "subtitle": "Revise os detalhes da sua campanha antes de enviar",
+      "summary": "Resumo da Campanha",
+      "campaignName": "Nome",
+      "template": "Mensagem",
+      "contacts": "Contatos",
+      "sendSpeed": "Velocidade",
+      "schedule": "Agendamento",
+      "estimatedCost": "Custo Estimado",
+      "confirmButton": "Confirmar Envio da Campanha",
+      "confirmNote": "Ao confirmar, sua campanha será enviada conforme a velocidade e horário selecionados.",
+      "editButton": "Editar Campanha"
+    }
+  },
+  "onboarding": {
+    "title": "Cadastro Incorporado (Embedded Signup)",
+    "subtitle": "Conecte sua Conta Oficial do WhatsApp (WABA) via fluxo de Cadastro Incorporado do Meta",
+    "connectButton": "Conectar WhatsApp Oficial",
+    "connectSubtitle": "Conecte sua Conta Oficial do WhatsApp (WABA) em menos de 5 minutos.",
+    "steps": {
+      "connect": "Conectar Conta",
+      "selectPhone": "Escolher Número",
+      "configure": "Configurar",
+      "complete": "Concluído"
+    },
+    "step1": {
+      "title": "Conecte sua Conta do Meta",
+      "description": "Autorize o acesso à sua Conta Oficial do WhatsApp",
+      "button": "Conectar com Meta"
+    },
+    "step2": {
+      "title": "Escolher WABA e Número",
+      "description": "Escolha a Conta Oficial do WhatsApp (WABA) e o número que você quer conectar a esta plataforma. Você pode conectar vários números da mesma WABA.",
+      "placeholder": "Selecione um número"
+    },
+    "step3": {
+      "title": "Configurar Webhooks",
+      "description": "Configure a URL do webhook para receber mensagens e eventos",
+      "webhook": "URL para Alertas Automáticos (Webhook - uso avançado)"
+    },
+    "step4": {
+      "title": "Tudo Pronto!",
+      "description": "Sua Conta Oficial do WhatsApp foi conectada com sucesso",
+      "button": "Ir para o Painel"
+    },
+    "connectedAccounts": "Contas Conectadas",
+    "noAccounts": "Nenhuma conta conectada ainda. Clique em 'Conectar Nova' para começar.",
+    "connectNew": "Conectar Nova",
+    "continueNextStep": "Continuar para Próxima Etapa",
+    "requiredPermissions": "Permissões Necessárias:",
+    "connectedPhoneNumbers": "Números Conectados:",
+    "accountDetails": {
+      "waba": "Conta Oficial (WABA)",
+      "phone": "Número",
+      "status": "Status",
+      "active": "Ativa",
+      "inactive": "Inativa"
+    }
+  },
+  "analytics": {
+    "title": "Relatórios e Métricas",
+    "subtitle": "Análise abrangente de métricas e insights das suas operações no WhatsApp",
+    "tabs": {
+      "overview": "Visão Geral",
+      "campaigns": "Campanhas",
+      "templates": "Mensagens",
+      "performance": "Desempenho"
+    },
+    "metrics": {
+      "totalMessages": "Total de Mensagens",
+      "deliveryRate": "Taxa de Entrega",
+      "readRate": "Taxa de Leitura",
+      "avgResponseTime": "Tempo Médio de Resposta",
+      "sent": "Enviadas",
+      "delivered": "Entregues",
+      "read": "Lidas",
+      "failed": "Falhas",
+      "conversionRate": "Taxa de Conversão",
+      "fromLastMonth": "em relação ao mês passado"
+    },
+    "dateRange": "Período",
+    "exportButton": "Exportar Relatório",
+    "noData": "Nenhum dado disponível para o período selecionado",
+    "messageVolumeTrends": "Tendências de Volume de Mensagens",
+    "chartPlaceholder": "Visualização de gráfico apareceria aqui"
+  },
+  "settings": {
+    "title": "Configurações",
+    "subtitle": "Gerencie sua conta, integrações e configuração da plataforma",
+    "tabs": {
+      "general": "Geral",
+      "webhooks": "Webhooks",
+      "billing": "Cobrança",
+      "team": "Equipe"
+    },
+    "general": {
+      "tenantInfo": "Informações da Empresa",
+      "tenantName": "Nome da Empresa",
+      "contactEmail": "E-mail de Contato",
+      "preferences": "Preferências",
+      "enableNotifications": "Ativar Notificações em Tempo Real",
+      "enableNotificationsDesc": "Receba notificações instantâneas para novas mensagens",
+      "autoAssignConversations": "Atribuir Conversas Automaticamente",
+      "autoAssignConversationsDesc": "Atribuir automaticamente novas conversas para agentes disponíveis",
+      "save": "Salvar Alterações"
+    },
+    "webhooks": {
+      "title": "Configuração de Webhook",
+      "description": "Configure endpoints de webhook para receber eventos em tempo real do WhatsApp",
+      "webhookUrl": "URL do Webhook",
+      "verifyToken": "Token de Verificação",
+      "regenerateToken": "Gerar Novo Token"
+    },
+    "api": {
+      "title": "Acesso via API",
+      "description": "Integre seu sistema com nossa API",
+      "token": "Token de Acesso",
+      "regenerate": "Gerar Novo Token",
+      "documentation": "Ver Documentação"
+    },
+    "preferences": {
+      "language": "Idioma",
+      "timezone": "Fuso Horário",
+      "notifications": "Notificações",
+      "emailNotifications": "Receber alertas por e-mail",
+      "smsNotifications": "Receber alertas por SMS"
+    }
+  },
+  "errors": {
+    "generic": "Ocorreu um erro. Tente novamente.",
+    "validation": "Por favor, preencha todos os campos obrigatórios",
+    "network": "Erro de conexão. Verifique sua internet.",
+    "unauthorized": "Sessão expirada. Faça login novamente.",
+    "notFound": "Página não encontrada",
+    "costFail": "Não foi possível calcular o custo agora. Tente novamente em alguns segundos.",
+    "templateNotFound": "Mensagem não encontrada",
+    "campaignCreateFail": "Erro ao criar campanha",
+    "sendFail": "Erro ao enviar mensagem",
+    "templateGenerateFail": "Falha ao gerar variações. Tente novamente.",
+    "templateSubmitFail": "Falha ao enviar para aprovação. Tente novamente.",
+    "templateLoadFail": "Falha ao carregar templates."
+  },
+  "success": {
+    "saved": "Alterações salvas com sucesso!",
+    "campaignCreated": "🎉 Campanha criada com sucesso!",
+    "campaignSent": "🎉 Campanha enviada com sucesso!",
+    "templateCreated": "Mensagem criada com sucesso!",
+    "templateSubmitted": "✅ Enviado para aprovação. Aguarde retorno da Meta.",
+    "templateGenerated": "✨ 10 variações geradas com sucesso!",
+    "connected": "Conta conectada com sucesso!",
+    "messageSent": "Mensagem enviada!",
+    "contentCopied": "Conteúdo copiado!"
+  },
+  "countries": {
+    "BR": "🇧🇷 Brasil",
+    "US": "🇺🇸 Estados Unidos",
+    "IN": "🇮🇳 Índia",
+    "MX": "🇲🇽 México",
+    "AR": "🇦🇷 Argentina"
+  },
+  "connectWhatsapp": {
+    "title": "Conectar WhatsApp Oficial",
+    "subtitle": "Integre sua empresa (ou a de seus clientes) usando o Cadastro Incorporado do WhatsApp. Simples, rápido e seguro.",
+    "userType": {
+      "title": "Escolha o Tipo de Usuário",
+      "clientTitle": "Sou dono de uma loja",
+      "clientDesc": "Conecte sua própria empresa ao WhatsApp Oficial",
+      "clientButton": "Continuar como Cliente",
+      "agencyTitle": "Sou Agência ou Gestor",
+      "agencyDesc": "Gerencie várias empresas de clientes",
+      "agencyButton": "Continuar como Agência"
+    },
+    "clientFlow": {
+      "step1Title": "Conectar com Meta",
+      "step1Desc": "Clique abaixo para iniciar o Cadastro Incorporado (Embedded Signup).",
+      "connectButton": "Conectar com o Meta (Embedded Signup)",
+      "successTitle": "Conectado com Sucesso!",
+      "company": "Empresa",
+      "businessId": "Business ID",
+      "wabaId": "WABA ID",
+      "phoneNumber": "Número",
+      "goToDashboard": "Ir para o Painel"
+    },
+    "agencyFlow": {
+      "step1Title": "Conectar Conta Meta",
+      "step1Button": "Conectar Conta Meta (OAuth)",
+      "step2Title": "Selecionar Empresa",
+      "step2Desc": "Empresas encontradas no seu Portfólio Empresarial",
+      "selectButton": "Selecionar Empresa",
+      "step3Title": "Conectar WhatsApp",
+      "step3Button": "Conectar WhatsApp (Embedded Signup)",
+      "phoneId": "Phone ID"
+    },
+    "connectionStatus": {
+      "title": "Status da Conexão",
+      "connected": "Conectado",
+      "lastAuth": "Última Autenticação",
+      "revalidate": "Revalidar Conexão",
+      "switchCompany": "Trocar Empresa"
+    }
+  }
+}

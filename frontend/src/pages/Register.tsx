@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,20 +15,26 @@ const Register = () => {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const { register } = useAuth();
+  const { register, isAuthenticated, loading } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!loading && isAuthenticated) {
+      navigate("/", { replace: true });
+    }
+  }, [isAuthenticated, loading, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (password !== confirmPassword) {
-      toast.error("Passwords do not match");
+      toast.error("As senhas não coincidem");
       return;
     }
 
     if (password.length < 6) {
-      toast.error("Password must be at least 6 characters");
+      toast.error("A senha deve ter pelo menos 6 caracteres");
       return;
     }
 
@@ -50,7 +56,7 @@ const Register = () => {
       
       if (!token) {
         console.error("Token not found after registration after retries");
-        toast.error("Registration succeeded but authentication failed. Please login again.");
+        toast.error("Cadastro realizado, mas a autenticação falhou. Por favor, faça login novamente.");
         navigate("/login");
         return;
       }
@@ -58,15 +64,15 @@ const Register = () => {
       // Auto-create a default shop for the new user
       // Token is now definitely set, so shop creation should work
       try {
-        const shop = await api.createShop("My Shop");
+        const shop = await api.createShop("Minha Empresa");
         console.log("Shop created successfully:", shop);
         // Invalidate shops query so all pages refresh
         queryClient.invalidateQueries({ queryKey: ['shops'] });
-        toast.success("Registration successful! Default shop created.");
+        toast.success("Cadastro realizado com sucesso! Empresa padrão criada.");
       } catch (shopError: any) {
         // Shop creation failed, but user is registered
         console.error("Failed to create shop:", shopError);
-        const errorMessage = shopError?.message || shopError?.error || "Unknown error";
+        const errorMessage = shopError?.message || shopError?.error || "Erro desconhecido";
         console.error("Shop creation error details:", {
           message: errorMessage,
           error: shopError,
@@ -74,13 +80,13 @@ const Register = () => {
           status: shopError?.response?.status,
           statusText: shopError?.response?.statusText
         });
-        toast.warning(`Registration successful! Shop creation failed: ${errorMessage}. You can create one later.`);
+        toast.warning(`Cadastro realizado com sucesso! Falha ao criar empresa: ${errorMessage}. Você pode criar uma depois.`);
       }
       
       navigate("/");
     } catch (error: any) {
       console.error("Registration error:", error);
-      toast.error(error.message || "Registration failed");
+      toast.error(error.message || "Falha no cadastro");
     } finally {
       setIsLoading(false);
     }
@@ -101,19 +107,19 @@ const Register = () => {
         {/* Form Section */}
         <Card className="w-full md:w-1/2 max-w-md">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">Create an account</CardTitle>
+          <CardTitle className="text-2xl font-bold text-center">Criar uma conta</CardTitle>
           <CardDescription className="text-center">
-            Enter your information to get started
+            Digite suas informações para começar
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">E-mail</Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="name@example.com"
+                placeholder="nome@exemplo.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -121,7 +127,7 @@ const Register = () => {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">Senha</Label>
               <Input
                 id="password"
                 type="password"
@@ -134,7 +140,7 @@ const Register = () => {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirm Password</Label>
+              <Label htmlFor="confirmPassword">Confirmar Senha</Label>
               <Input
                 id="confirmPassword"
                 type="password"
@@ -149,14 +155,14 @@ const Register = () => {
             <Button
               type="submit"
               className="w-full bg-gradient-primary hover:opacity-90"
-              disabled={isLoading}
+              disabled={isLoading || loading || isAuthenticated}
             >
-              {isLoading ? "Creating account..." : "Register"}
+              {isLoading ? "Criando conta..." : "Cadastrar"}
             </Button>
             <div className="text-center text-sm text-muted-foreground">
-              Already have an account?{" "}
+              Já tem uma conta?{" "}
               <Link to="/login" className="text-primary hover:underline">
-                Login
+                Entrar
               </Link>
             </div>
           </form>

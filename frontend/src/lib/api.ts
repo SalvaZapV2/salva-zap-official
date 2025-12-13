@@ -117,6 +117,12 @@ class ApiClient {
     });
   }
 
+  async deleteShop(id: string): Promise<{ message: string }> {
+    return this.request<{ message: string }>(`/shops/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
   async getUserProfile(): Promise<User> {
     return this.request<User>('/auth/me');
   }
