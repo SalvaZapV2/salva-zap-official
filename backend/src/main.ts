@@ -22,10 +22,13 @@ async function bootstrap() {
     }
   }));
   
-  // Enable CORS for frontend
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+  // Enable CORS for frontend (supports comma-separated list)
+  const frontendUrls = (process.env.FRONTEND_URL || 'http://localhost:5173')
+    .split(',')
+    .map((u) => u.trim())
+    .filter(Boolean);
   app.enableCors({
-    origin: frontendUrl,
+    origin: frontendUrls,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'x-hub-signature-256'],

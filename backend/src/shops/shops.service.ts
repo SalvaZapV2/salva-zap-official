@@ -61,5 +61,27 @@ export class ShopsService {
       },
     });
   }
+
+  async remove(id: string, ownerId: string) {
+    // Verify shop exists and belongs to user
+    const shop = await this.prisma.shop.findUnique({
+      where: { id },
+    });
+
+    if (!shop) {
+      throw new NotFoundException('Shop not found');
+    }
+
+    if (shop.ownerId !== ownerId) {
+      throw new ForbiddenException('You do not have permission to delete this shop');
+    }
+
+    // Delete shop (cascade will delete associated WABA accounts)
+    await this.prisma.shop.delete({
+      where: { id },
+    });
+
+    return { message: 'Shop deleted successfully' };
+  }
 }
 

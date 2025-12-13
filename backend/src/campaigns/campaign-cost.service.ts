@@ -38,9 +38,16 @@ export class CampaignCostService {
   }
 
   async calculateCost(templateId: string | null, contactCount: number): Promise<{
+    totalCost: number;
+    costPerMessage: number;
+    currency: string;
+    breakdown: {
+      messageCount: number;
+      costPerUnit: number;
+    };
+    // Additional fields for backwards compatibility
     usdCost: number;
     brlCost: number;
-    currency: string;
     pricingModel: string;
     contactCount: number;
   }> {
@@ -73,6 +80,7 @@ export class CampaignCostService {
         usdCost: Math.round(usdCost * 10000) / 10000,
         brlCost: Math.round(brlCost * 100) / 100,
         pricingModel: pricing.pricing_model || 'conversation',
+        contactCount,
       };
     } catch (error) {
       this.logger.error('Error calculating campaign cost:', error);
@@ -91,6 +99,7 @@ export class CampaignCostService {
         usdCost: defaultUsdCost,
         brlCost: contactCount * 0.025, // Default ~R$0.025 per message (assuming ~5 BRL/USD)
         pricingModel: 'conversation',
+        contactCount,
       };
     }
   }
