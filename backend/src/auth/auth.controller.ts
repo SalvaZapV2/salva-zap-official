@@ -76,7 +76,7 @@ export class AuthController {
     @Res() res: Response,
   ) {
     const frontendCallbackUrl = this.configService.get<string>('FRONTEND_CALLBACK_URL') || 
-      `${this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173'}/onboarding/callback`;
+      `${this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000'}/onboarding/callback`;
 
     // Handle OAuth errors from Meta
     if (error) {

@@ -59,8 +59,8 @@ services:
       META_VERIFY_TOKEN: ${META_VERIFY_TOKEN:-default-verify-token}
       META_API_VERSION: v21.0
       RATE_LIMIT_DEFAULT: 10
-      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
-      FRONTEND_CALLBACK_URL: ${FRONTEND_CALLBACK_URL:-http://localhost:5173/onboarding/callback}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      FRONTEND_CALLBACK_URL: ${FRONTEND_CALLBACK_URL:-http://localhost:3000/onboarding/callback}
     depends_on:
       mysql:
         condition: service_healthy

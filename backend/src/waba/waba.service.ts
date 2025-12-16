@@ -30,7 +30,7 @@ export class WabaService {
     // Use frontend callback URL for redirect - Meta will redirect user there
     const redirectUri = this.configService.get<string>('FRONTEND_CALLBACK_URL') || 
       this.configService.get<string>('REDIRECT_URI') ||
-      `${this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173'}/onboarding/callback`;
+      `${this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000'}/onboarding/callback`;
     
     const scopes = 'whatsapp_business_messaging,whatsapp_business_management,business_management';
     
@@ -52,7 +52,7 @@ export class WabaService {
       // Exchange code for access token - redirect URI must match the one used in OAuth request
       const redirectUri = this.configService.get<string>('FRONTEND_CALLBACK_URL') || 
         this.configService.get<string>('REDIRECT_URI') ||
-        `${this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173'}/onboarding/callback`;
+        `${this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000'}/onboarding/callback`;
       
       this.logger.debug(`Exchanging authorization code for access token (redirect_uri: ${redirectUri})`);
       

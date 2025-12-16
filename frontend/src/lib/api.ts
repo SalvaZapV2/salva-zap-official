@@ -11,7 +11,11 @@ import type {
   DashboardStats,
 } from './types';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+// In production we serve the frontend and backend from the same origin.
+// Use a relative /api base by default so it works with the Vite dev proxy
+// and with the NestJS backend serving the frontend on the same port.
+const API_BASE_URL =
+  (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') || '/api';
 
 class ApiClient {
   private baseURL: string;
