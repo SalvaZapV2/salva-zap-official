@@ -4,7 +4,6 @@ WORKDIR /app
 
 COPY package*.json ./
 COPY prisma ./prisma/
-COPY frontend ./frontend/
 
 RUN npm ci
 
@@ -19,7 +18,6 @@ WORKDIR /app
 
 COPY package*.json ./
 COPY prisma ./prisma/
-COPY frontend ./frontend/
 
 RUN npm ci --only=production
 RUN npx prisma generate
