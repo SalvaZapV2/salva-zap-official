@@ -4,7 +4,7 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Bell, LogOut, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
-import headerLogo from "@/assets/header-logo.png";
+import headerLogo from "@/assets/header-logo.webp";
 
 export const AppLayout = () => {
   const { user, logout } = useAuth();

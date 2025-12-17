@@ -21,8 +21,8 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import headerLogo from "@/assets/header-logo.png";
-import markWhite from "@/assets/mark-white.png";
+import headerLogo from "@/assets/header-logo.webp";
+import markWhite from "@/assets/mark-white.webp";
 
 const mainItems = [
   { title: "Painel", url: "/", icon: Home },
