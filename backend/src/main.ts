@@ -83,7 +83,7 @@ async function bootstrap() {
     logger.warn('Application will continue, but database operations may fail');
   }
 
-  const port = process.env.APP_PORT || 3001;
+  const port = process.env.APP_PORT || 3000;
   await app.listen(port);
   logger.log(`Application is running on: http://localhost:${port}`);
   logger.log(`Health check available at: http://localhost:${port}/api/health`);
