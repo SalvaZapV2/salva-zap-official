@@ -34,6 +34,7 @@ export class WebhookProcessor extends WorkerHost {
       const changes = entry.changes || [];
       for (const change of changes) {
         const value = change.value;
+        const field = change.field;
 
         // Handle messages
         if (value.messages) {
@@ -46,6 +47,23 @@ export class WebhookProcessor extends WorkerHost {
         if (value.statuses) {
           for (const status of value.statuses) {
             await this.updateMessageStatus(wabaAccount.id, status);
+          }
+        }
+
+        // Handle template status updates
+        // Meta can send this in different formats:
+        // 1. As an array in value.message_template_status_update
+        // 2. As a single object when field === "message_template_status_update"
+        if (field === 'message_template_status_update' && value.event) {
+          // Single template status update
+          await this.updateTemplateStatus(wabaAccount.id, value);
+        } else if (value.message_template_status_update) {
+          // Array of template status updates
+          const updates = Array.isArray(value.message_template_status_update)
+            ? value.message_template_status_update
+            : [value.message_template_status_update];
+          for (const update of updates) {
+            await this.updateTemplateStatus(wabaAccount.id, update);
           }
         }
       }
@@ -147,6 +165,64 @@ export class WebhookProcessor extends WorkerHost {
       data: {
         status: statusValue,
         updatedAt: new Date(),
+      },
+    });
+  }
+
+  private async updateTemplateStatus(wabaAccountId: string, update: any) {
+    // Meta sends template status updates with event: APPROVED, REJECTED, etc.
+    const event = update.event;
+    const templateName = update.name || update.message_template_name;
+    
+    if (!templateName) {
+      console.warn('Template status update missing template name:', update);
+      return;
+    }
+
+    // Find template by name and wabaAccountId
+    const template = await this.prisma.template.findFirst({
+      where: {
+        wabaAccountId,
+        name: templateName,
+      },
+    });
+
+    if (!template) {
+      console.warn(`Template not found for status update: ${templateName} (WABA: ${wabaAccountId})`);
+      return;
+    }
+
+    // Map Meta events to our status values
+    let status: string;
+    if (event === 'APPROVED') {
+      status = 'approved';
+    } else if (event === 'REJECTED') {
+      status = 'rejected';
+    } else {
+      // Keep existing status for other events
+      status = template.status;
+    }
+
+    // Update template with new status and history
+    const existingHistory = (template.history as any) || {};
+    const historyUpdate: any = {
+      ...existingHistory,
+      statusUpdate: update,
+    };
+
+    // Store event timestamp
+    historyUpdate[event.toLowerCase()] = new Date().toISOString();
+    
+    // Explicitly store 'approved' timestamp for frontend compatibility
+    if (event === 'APPROVED') {
+      historyUpdate.approved = new Date().toISOString();
+    }
+
+    await this.prisma.template.update({
+      where: { id: template.id },
+      data: {
+        status,
+        history: historyUpdate,
       },
     });
   }

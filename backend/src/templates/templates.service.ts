@@ -67,6 +67,8 @@ export class TemplatesService {
           status: 'submitted',
           history: {
             submitted: new Date().toISOString(),
+            category: templateData.category, // Store original category for frontend
+            components: templateData.components, // Store original components for frontend
             metaResponse: response.data,
           },
         },
