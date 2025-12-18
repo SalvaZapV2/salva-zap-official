@@ -26,6 +26,7 @@ import {
   Copy,
   CheckCircle,
   Plus,
+  DollarSign,
   Sparkles,
   Loader2,
 } from "lucide-react";
@@ -33,7 +34,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { useActiveWaba } from "@/hooks/use-active-waba";
-import type { Template } from "@/lib/types";
+import type { Template, TemplateCategory } from "@/lib/types";
 
 const MensagensAprovadas = () => {
   const navigate = useNavigate();
@@ -49,6 +50,81 @@ const MensagensAprovadas = () => {
     enabled: !!activeWaba?.id,
   });
 
+  // Filter only approved templates
+  const approvedTemplates = templates.filter((t) => t.status === "approved");
+
+  // Helper functions to extract data from history
+  const getCategory = (template: Template): TemplateCategory => {
+    const history = template.history as any;
+    if (history?.category) return history.category;
+    if (history?.metaResponse?.category) return history.metaResponse.category;
+    return "UTILITY"; // default
+  };
+
+  const getContentPreview = (template: Template): string => {
+    const history = template.history as any;
+    if (history?.components) {
+      const bodyComponent = history.components.find((c: any) => c.type === "BODY");
+      if (bodyComponent?.text) return bodyComponent.text;
+    }
+    if (history?.metaResponse?.components) {
+      const bodyComponent = history.metaResponse.components.find((c: any) => c.type === "BODY");
+      if (bodyComponent?.text) return bodyComponent.text;
+    }
+    return "—";
+  };
+
+  const getApprovedAt = (template: Template): string => {
+    const history = template.history as any;
+    if (history?.approved) {
+      return new Date(history.approved).toLocaleDateString("pt-BR");
+    }
+    if (template.updatedAt && template.status === "approved") {
+      return new Date(template.updatedAt).toLocaleDateString("pt-BR");
+    }
+    return "—";
+  };
+
+  const getPrice = (category: TemplateCategory): number => {
+    // WhatsApp pricing per message (in USD)
+    switch (category) {
+      case "MARKETING":
+        return 0.0358;
+      case "UTILITY":
+        return 0.03;
+      case "AUTHENTICATION":
+        return 0.025;
+      default:
+        return 0.03;
+    }
+  };
+
+  const getCategoryLabel = (category: TemplateCategory): string => {
+    switch (category) {
+      case "MARKETING":
+        return "Marketing";
+      case "UTILITY":
+        return "Utilidade";
+      case "AUTHENTICATION":
+        return "Autenticação";
+      default:
+        return category;
+    }
+  };
+
+  const getCategoryColor = (category: TemplateCategory): string => {
+    switch (category) {
+      case "MARKETING":
+        return "bg-primary/20 text-primary border-primary/30";
+      case "UTILITY":
+        return "bg-info/20 text-info border-info/30";
+      case "AUTHENTICATION":
+        return "bg-warning/20 text-warning border-warning/30";
+      default:
+        return "bg-muted/20 text-muted-foreground";
+    }
+  };
+
   const submitTemplateMutation = useMutation({
     mutationFn: async () => {
       if (!activeWaba) throw new Error("Nenhuma conta WABA conectada");
@@ -57,12 +133,12 @@ const MensagensAprovadas = () => {
       const payload = {
         name,
         language: "pt_BR",
-      category: "MARKETING",
+        category: "MARKETING",
         components: [
           {
             type: "BODY",
             text: templatePrompt,
-    },
+          },
         ],
       };
 
@@ -88,11 +164,11 @@ const MensagensAprovadas = () => {
     },
   });
 
-  const handleCopyName = (name: string) => {
-    navigator.clipboard.writeText(name);
+  const handleCopyContent = (content: string) => {
+    navigator.clipboard.writeText(content);
     toast({
       title: "Copiado!",
-      description: "Nome copiado para a área de transferência",
+      description: "Conteúdo copiado para a área de transferência",
     });
   };
 
@@ -120,7 +196,7 @@ const MensagensAprovadas = () => {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Mensagens Aprovadas</h1>
           <p className="text-muted-foreground mt-1">
-            Gerencie suas mensagens aprovadas pelo WhatsApp para envio em massa
+            Gerencie suas Mensagens Aprovadas pelo WhatsApp para envio em massa
           </p>
         </div>
         <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
@@ -134,25 +210,27 @@ const MensagensAprovadas = () => {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-primary" />
-                Gerar Template rápido
+                Gerar Templates com IA
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-6 py-4">
+              {/* Campo único de intenção */}
               <div className="space-y-2">
-                <Label htmlFor="templatePrompt">Conteúdo do corpo</Label>
+                <Label htmlFor="templatePrompt">Descreva o que você deseja comunicar</Label>
                 <Textarea
                   id="templatePrompt"
-                  placeholder="Ex: Olá {{1}}, aqui é da Loja XPTO. Promoção de 20% hoje!"
+                  placeholder="Ex: Quero avisar meus clientes sobre uma promoção de 20% em pizzas neste fim de semana..."
                   rows={5}
                   value={templatePrompt}
                   onChange={(e) => setTemplatePrompt(e.target.value)}
                   disabled={isGenerating}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Enviaremos este texto como corpo do template (categoria Marketing).
+                  A IA irá gerar 10 variações de templates e enviar automaticamente para aprovação da Meta
                 </p>
               </div>
 
+              {/* Botão de Gerar */}
               <Button
                 className="w-full bg-[#25D366] hover:bg-[#25D366]/90"
                 onClick={handleGenerateTemplates}
@@ -161,15 +239,18 @@ const MensagensAprovadas = () => {
                 {isGenerating ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Enviando...
+                    Gerando templates...
                   </>
                 ) : (
                   <>
                     <Sparkles className="h-4 w-4 mr-2" />
-                    Enviar para aprovação
+                    Gerar Templates
                   </>
                 )}
               </Button>
+              <p className="text-xs text-center text-muted-foreground">
+                Os templates serão automaticamente classificados e enviados para aprovação
+              </p>
             </div>
           </DialogContent>
         </Dialog>
@@ -181,9 +262,10 @@ const MensagensAprovadas = () => {
           <div className="flex items-start gap-3">
             <CheckCircle className="h-5 w-5 text-success mt-0.5" />
             <div>
-              <p className="text-sm font-medium">Apenas mensagens aprovadas</p>
+              <p className="text-sm font-medium">Apenas Mensagens Aprovadas pela Meta</p>
               <p className="text-sm text-muted-foreground">
-                Mostramos as mensagens aprovadas na Meta. Use-as em campanhas ou envie individualmente.
+                Esta lista exibe somente as mensagens que foram aprovadas oficialmente. 
+                Templates rejeitados ou pendentes não aparecem aqui.
               </p>
             </div>
           </div>
@@ -191,7 +273,7 @@ const MensagensAprovadas = () => {
       </Card>
 
       {/* Templates Table */}
-      {templates.length > 0 ? (
+      {approvedTemplates.length > 0 ? (
         <Card className="bg-card border-border">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -204,49 +286,62 @@ const MensagensAprovadas = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Nome</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Idioma</TableHead>
-                  <TableHead>Criado em</TableHead>
+                  <TableHead>Categoria</TableHead>
+                  <TableHead>Preço</TableHead>
+                  <TableHead>Aprovado em</TableHead>
+                  <TableHead>Preview</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {templates.map((template) => (
-                  <TableRow key={template.id}>
-                    <TableCell className="font-medium">{template.name}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="text-xs capitalize">
-                        {template.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{template.language}</TableCell>
-                    <TableCell>
-                      {template.createdAt
-                        ? new Date(template.createdAt).toLocaleDateString("pt-BR")
-                        : "—"}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleCopyName(template.name)}
-                        >
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => handleUseCampaign(template.id)}
-                          className="bg-[#25D366] hover:bg-[#25D366]/90"
-                          disabled={template.status !== "approved"}
-                        >
-                          <Megaphone className="h-4 w-4 mr-1" />
-                          Usar em Campanha
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {approvedTemplates.map((template) => {
+                  const category = getCategory(template);
+                  const content = getContentPreview(template);
+                  const approvedAt = getApprovedAt(template);
+                  const price = getPrice(category);
+                  
+                  return (
+                    <TableRow key={template.id}>
+                      <TableCell className="font-medium">{template.name}</TableCell>
+                      <TableCell>
+                        <Badge className={getCategoryColor(category)}>
+                          {getCategoryLabel(category)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1 text-sm">
+                          <DollarSign className="h-3 w-3 text-muted-foreground" />
+                          <span>{price.toFixed(4)}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>{approvedAt}</TableCell>
+                      <TableCell className="max-w-[300px]">
+                        <p className="text-sm text-muted-foreground truncate">
+                          {content}
+                        </p>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleCopyContent(content)}
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => handleUseCampaign(template.id)}
+                            className="bg-[#25D366] hover:bg-[#25D366]/90"
+                          >
+                            <Megaphone className="h-4 w-4 mr-1" />
+                            Usar em Campanha
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </CardContent>
@@ -260,7 +355,7 @@ const MensagensAprovadas = () => {
             </h3>
             <p className="text-muted-foreground max-w-md mx-auto">
               Você ainda não possui mensagens aprovadas pela Meta. 
-              Clique em "Criar Mensagem" para enviar um novo template.
+              Clique em "Criar Mensagem" para gerar templates com IA.
             </p>
           </CardContent>
         </Card>
