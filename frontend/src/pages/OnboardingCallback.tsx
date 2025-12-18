@@ -31,35 +31,48 @@ const OnboardingCallback = () => {
       return;
     }
 
-    // Call backend to handle the callback
-    // Note: Backend callback endpoint is at /auth/embedded/callback
-    // We need to call it from the backend since it needs to exchange the code
-    fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/auth/embedded/callback?code=${code}&state=${state || ''}`, {
+    // Use the api client instead of raw fetch to ensure correct base URL
+    const apiBaseUrl = import.meta.env.VITE_API_URL || '/api';
+    const url = `${apiBaseUrl}/auth/embedded/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state || '')}`;
+    
+    fetch(url, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        'Accept': 'application/json', // Add this - important for backend to detect API call
+        'Content-Type': 'application/json',
       },
     })
       .then(async (response) => {
-        const data = await response.json();
-        if (response.ok) {
-          setStatus('success');
-          setMessage('WhatsApp Business Account connected successfully!');
-          toast.success('WABA connected successfully');
-          // Refresh shops to get updated WABA accounts
-          setTimeout(() => {
-            navigate('/onboarding');
-          }, 2000);
-        } else {
-          setStatus('error');
-          setMessage(data.message || data.error || 'Failed to connect account');
-          toast.error(data.message || 'Failed to connect account');
+        // Check if response is a redirect (3xx status) or HTML
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('text/html')) {
+          // Backend redirected - this shouldn't happen when called from frontend
+          // But if it does, check the redirect location
+          const text = await response.text();
+          throw new Error('Backend returned HTML instead of JSON. Check backend logs.');
         }
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ 
+            message: `Request failed with status ${response.status}` 
+          }));
+          throw new Error(errorData.message || errorData.error || `HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        setStatus('success');
+        setMessage('WhatsApp Business Account connected successfully!');
+        toast.success('WABA connected successfully');
+        setTimeout(() => {
+          navigate('/onboarding');
+        }, 2000);
       })
       .catch((error) => {
         setStatus('error');
         setMessage(error.message || 'An error occurred');
         toast.error('Failed to process callback');
+        console.error('Callback error:', error);
       });
   }, [searchParams, navigate]);
 
