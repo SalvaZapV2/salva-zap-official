@@ -173,8 +173,17 @@ export class WabaService {
         },
       );
 
-      if (error.response?.status === 400 && errorMessage?.includes('code')) {
-        throw new BadRequestException('Invalid or expired authorization code. Please try again.');
+      // Handle specific Facebook OAuth errors
+      if (error.response?.status === 400) {
+        if (errorMessage?.includes('authorization code has been used') || 
+            errorCode === 100) {
+          throw new BadRequestException(
+            'This authorization code has already been used. Please try connecting again from the onboarding page.'
+          );
+        }
+        if (errorMessage?.includes('code')) {
+          throw new BadRequestException('Invalid or expired authorization code. Please try again.');
+        }
       }
 
       throw new BadRequestException(`Failed to process WABA connection: ${errorMessage}`);

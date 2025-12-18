@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ const OnboardingCallback = () => {
   const navigate = useNavigate();
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('Processing...');
+  const processedRef = useRef<string | null>(null); // Track processed codes
 
   useEffect(() => {
     const code = searchParams.get('code');
@@ -31,6 +32,27 @@ const OnboardingCallback = () => {
       return;
     }
 
+    // Prevent processing the same code twice
+    if (processedRef.current === code) {
+      console.log('Code already processed, skipping...');
+      return;
+    }
+
+    // Check if this code was already processed (stored in sessionStorage)
+    const processedCodes = JSON.parse(sessionStorage.getItem('processed_oauth_codes') || '[]');
+    if (processedCodes.includes(code)) {
+      setStatus('error');
+      setMessage('This authorization code has already been used. Please try connecting again.');
+      toast.error('Authorization code already used');
+      setTimeout(() => {
+        navigate('/onboarding');
+      }, 3000);
+      return;
+    }
+
+    // Mark as processing
+    processedRef.current = code;
+
     // Use the api client instead of raw fetch to ensure correct base URL
     const apiBaseUrl = import.meta.env.VITE_API_URL || '/api';
     const url = `${apiBaseUrl}/auth/embedded/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state || '')}`;
@@ -39,7 +61,7 @@ const OnboardingCallback = () => {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-        'Accept': 'application/json', // Add this - important for backend to detect API call
+        'Accept': 'application/json',
         'Content-Type': 'application/json',
       },
     })
@@ -47,8 +69,6 @@ const OnboardingCallback = () => {
         // Check if response is a redirect (3xx status) or HTML
         const contentType = response.headers.get('content-type');
         if (contentType && contentType.includes('text/html')) {
-          // Backend redirected - this shouldn't happen when called from frontend
-          // But if it does, check the redirect location
           const text = await response.text();
           throw new Error('Backend returned HTML instead of JSON. Check backend logs.');
         }
@@ -57,10 +77,31 @@ const OnboardingCallback = () => {
           const errorData = await response.json().catch(() => ({ 
             message: `Request failed with status ${response.status}` 
           }));
-          throw new Error(errorData.message || errorData.error || `HTTP error! status: ${response.status}`);
+          
+          // Handle "code already used" error specifically
+          if (errorData.error_description?.includes('authorization code has been used') || 
+              errorData.error?.includes('authorization code has been used')) {
+            // Mark code as processed to prevent retries
+            const processedCodes = JSON.parse(sessionStorage.getItem('processed_oauth_codes') || '[]');
+            if (!processedCodes.includes(code)) {
+              processedCodes.push(code);
+              sessionStorage.setItem('processed_oauth_codes', JSON.stringify(processedCodes));
+            }
+            throw new Error('This authorization code has already been used. Please try connecting again from the onboarding page.');
+          }
+          
+          throw new Error(errorData.error_description || errorData.message || errorData.error || `HTTP error! status: ${response.status}`);
         }
         
         const data = await response.json();
+        
+        // Mark code as successfully processed
+        const processedCodes = JSON.parse(sessionStorage.getItem('processed_oauth_codes') || '[]');
+        if (!processedCodes.includes(code)) {
+          processedCodes.push(code);
+          sessionStorage.setItem('processed_oauth_codes', JSON.stringify(processedCodes));
+        }
+        
         setStatus('success');
         setMessage('WhatsApp Business Account connected successfully!');
         toast.success('WABA connected successfully');
@@ -71,7 +112,7 @@ const OnboardingCallback = () => {
       .catch((error) => {
         setStatus('error');
         setMessage(error.message || 'An error occurred');
-        toast.error('Failed to process callback');
+        toast.error(error.message || 'Failed to process callback');
         console.error('Callback error:', error);
       });
   }, [searchParams, navigate]);
