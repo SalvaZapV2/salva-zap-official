@@ -49,7 +49,7 @@ export class WabaService {
     this.logger.log(`Processing WABA callback for shop ${state}`);
     
     try {
-      // Exchange code for access token - redirect URI must match the one used in OAuth request
+      // Exchange code for access token
       const redirectUri = this.configService.get<string>('FRONTEND_CALLBACK_URL') || 
         this.configService.get<string>('REDIRECT_URI') ||
         `${this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000'}/onboarding/callback`;
@@ -71,33 +71,82 @@ export class WabaService {
       const accessToken = tokenResponse.data.access_token;
       this.logger.debug('Successfully obtained access token');
 
-      // Get business info
-      const businessResponse = await axios.get(
-        `https://graph.facebook.com/v${this.metaApiVersion}/me/businesses`,
-        {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        },
-      );
+      let wabaId: string | null = null;
+      let businessId: string | null = null;
 
-      if (!businessResponse.data.data || businessResponse.data.data.length === 0) {
-        throw new BadRequestException('No business accounts found');
+      // Try Method 1: Get WABA accounts directly from user (doesn't require business_management)
+      try {
+        const directWabaResponse = await axios.get(
+          `https://graph.facebook.com/v${this.metaApiVersion}/me/owned_whatsapp_business_accounts`,
+          {
+            headers: { Authorization: `Bearer ${accessToken}` },
+            params: {
+              fields: 'id,name',
+            },
+          },
+        );
+
+        if (directWabaResponse.data.data && directWabaResponse.data.data.length > 0) {
+          wabaId = directWabaResponse.data.data[0].id;
+          this.logger.debug(`Found WABA directly: ${wabaId}`);
+        }
+      } catch (directError: any) {
+        this.logger.debug('Direct WABA fetch failed, trying business approach:', directError.message);
       }
 
-      const businessId = businessResponse.data.data[0].id;
+      // Method 2: Try through businesses (requires business_management permission)
+      if (!wabaId) {
+        try {
+          const businessResponse = await axios.get(
+            `https://graph.facebook.com/v${this.metaApiVersion}/me/businesses`,
+            {
+              headers: { Authorization: `Bearer ${accessToken}` },
+            },
+          );
 
-      // Get WABA info
-      const wabaResponse = await axios.get(
-        `https://graph.facebook.com/v${this.metaApiVersion}/${businessId}/owned_whatsapp_business_accounts`,
-        {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        },
-      );
+          if (!businessResponse.data.data || businessResponse.data.data.length === 0) {
+            throw new BadRequestException(
+              'No business accounts found. Please ensure you are an admin of a Facebook Business account and have granted business_management permission.'
+            );
+          }
 
-      if (!wabaResponse.data.data || wabaResponse.data.data.length === 0) {
-        throw new BadRequestException('No WABA accounts found');
+          businessId = businessResponse.data.data[0].id;
+          this.logger.debug(`Found business: ${businessId}`);
+
+          // Get WABA info from business
+          const wabaResponse = await axios.get(
+            `https://graph.facebook.com/v${this.metaApiVersion}/${businessId}/owned_whatsapp_business_accounts`,
+            {
+              headers: { Authorization: `Bearer ${accessToken}` },
+            },
+          );
+
+          if (!wabaResponse.data.data || wabaResponse.data.data.length === 0) {
+            throw new BadRequestException(
+              'No WABA accounts found in your business. Please ensure you have a WhatsApp Business Account connected to your Facebook Business account.'
+            );
+          }
+
+          wabaId = wabaResponse.data.data[0].id;
+        } catch (businessError: any) {
+          const errorMsg = businessError.response?.data?.error?.message || businessError.message;
+          const errorCode = businessError.response?.data?.error?.code;
+          
+          if (errorMsg.includes('business_management') || errorCode === 200) {
+            throw new BadRequestException(
+              'Missing business_management permission. ' +
+              'Please go to Facebook Developer Console > Permissions and request Advanced Access for business_management. ' +
+              'Then reconnect and ensure you grant all requested permissions. ' +
+              'You must also be an admin of the Facebook Business account.'
+            );
+          }
+          throw businessError;
+        }
       }
 
-      const wabaId = wabaResponse.data.data[0].id;
+      if (!wabaId) {
+        throw new BadRequestException('No WABA accounts found. Please ensure you have a WhatsApp Business Account.');
+      }
 
       // Get phone numbers
       const phoneResponse = await axios.get(
@@ -108,7 +157,7 @@ export class WabaService {
       );
 
       if (!phoneResponse.data.data || phoneResponse.data.data.length === 0) {
-        throw new BadRequestException('No phone numbers found');
+        throw new BadRequestException('No phone numbers found in WABA account');
       }
 
       const phoneId = phoneResponse.data.data[0].id;
@@ -131,7 +180,7 @@ export class WabaService {
             phoneId,
             displayNumber,
             encryptedToken,
-            tokenExpiresAt: null, // TODO: Extract from token if available
+            tokenExpiresAt: null,
           },
         });
       } else {
@@ -173,17 +222,9 @@ export class WabaService {
         },
       );
 
-      // Handle specific Facebook OAuth errors
-      if (error.response?.status === 400) {
-        if (errorMessage?.includes('authorization code has been used') || 
-            errorCode === 100) {
-          throw new BadRequestException(
-            'This authorization code has already been used. Please try connecting again from the onboarding page.'
-          );
-        }
-        if (errorMessage?.includes('code')) {
-          throw new BadRequestException('Invalid or expired authorization code. Please try again.');
-        }
+      // Re-throw BadRequestException as-is (it already has a good message)
+      if (error instanceof BadRequestException) {
+        throw error;
       }
 
       throw new BadRequestException(`Failed to process WABA connection: ${errorMessage}`);
