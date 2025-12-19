@@ -48,6 +48,48 @@ export class WabaService {
     return url;
   }
 
+  /**
+   * Make an axios request with retry logic for transient network errors
+   */
+  private async axiosWithRetry<T>(
+    requestFn: () => Promise<T>,
+    maxRetries: number = 3,
+    retryDelay: number = 1000,
+  ): Promise<T> {
+    let lastError: any;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        return await requestFn();
+      } catch (error: any) {
+        lastError = error;
+        
+        // Check if it's a retryable error
+        const isRetryable = 
+          error.code === 'ETIMEDOUT' ||
+          error.code === 'ECONNRESET' ||
+          error.code === 'ENOTFOUND' ||
+          error.code === 'ECONNREFUSED' ||
+          (error.response?.status >= 500 && error.response?.status < 600) ||
+          error.message?.includes('timeout') ||
+          error.message?.includes('ETIMEDOUT');
+        
+        if (!isRetryable || attempt === maxRetries) {
+          throw error;
+        }
+        
+        this.logger.warn(
+          `Request failed (attempt ${attempt}/${maxRetries}), retrying in ${retryDelay}ms...`,
+          { error: error.message, code: error.code }
+        );
+        
+        await new Promise(resolve => setTimeout(resolve, retryDelay * attempt));
+      }
+    }
+    
+    throw lastError;
+  }
+
   async handleCallback(code: string, state: string) {
     this.logger.log(`Processing WABA callback for shop ${state}`);
     
@@ -67,43 +109,35 @@ export class WabaService {
       
       this.logger.debug(`Exchanging authorization code for access token (redirect_uri: ${redirectUri})`);
       
-      let tokenResponse;
-      try {
-        tokenResponse = await axios.get(
+      // Configure axios defaults for Meta API requests
+      const axiosConfig = {
+        timeout: 60000, // 60 second timeout
+        // Force IPv4 if IPv6 is having issues (uncomment if needed)
+        // family: 4,
+      };
+      
+      const tokenResponse = await this.axiosWithRetry(
+        () => axios.get(
           `https://graph.facebook.com/v${this.metaApiVersion}/oauth/access_token`,
           {
+            ...axiosConfig,
             params: {
               client_id: this.metaAppId,
               client_secret: this.metaAppSecret,
               redirect_uri: redirectUri,
               code,
             },
-            timeout: 30000, // 30 second timeout
           },
-        );
-        this.logger.debug('Token exchange request completed');
-      } catch (tokenError: any) {
-        this.logger.error('Token exchange failed', {
-          error: tokenError.message,
-          code: tokenError.code,
-          status: tokenError.response?.status,
-          data: tokenError.response?.data,
-        });
-        throw tokenError;
-      }
+        ),
+        3, // max retries
+        2000, // initial retry delay (2 seconds)
+      );
 
       // Mark code as used immediately after successful exchange
       this.usedCodes.add(code);
       
       // Clean up old codes periodically (optional - to prevent memory leak)
       // You could also use a TTL-based cache like Redis in production
-      
-      if (!tokenResponse.data || !tokenResponse.data.access_token) {
-        this.logger.error('Token response missing access_token', {
-          response: tokenResponse.data,
-        });
-        throw new BadRequestException('Invalid response from Meta API: missing access token');
-      }
       
       const accessToken = tokenResponse.data.access_token;
       this.logger.debug('Successfully obtained access token');
@@ -113,15 +147,17 @@ export class WabaService {
 
       // Try Method 1: Get WABA accounts directly from user (doesn't require business_management)
       try {
-        const directWabaResponse = await axios.get(
-          `https://graph.facebook.com/v${this.metaApiVersion}/me/owned_whatsapp_business_accounts`,
-          {
-            headers: { Authorization: `Bearer ${accessToken}` },
-            params: {
-              fields: 'id,name',
+        const directWabaResponse = await this.axiosWithRetry(
+          () => axios.get(
+            `https://graph.facebook.com/v${this.metaApiVersion}/me/owned_whatsapp_business_accounts`,
+            {
+              timeout: 60000,
+              headers: { Authorization: `Bearer ${accessToken}` },
+              params: {
+                fields: 'id,name',
+              },
             },
-            timeout: 30000, // 30 second timeout
-          },
+          ),
         );
 
         if (directWabaResponse.data.data && directWabaResponse.data.data.length > 0) {
@@ -135,12 +171,14 @@ export class WabaService {
       // Method 2: Try through businesses (requires business_management permission)
       if (!wabaId) {
         try {
-          const businessResponse = await axios.get(
-            `https://graph.facebook.com/v${this.metaApiVersion}/me/businesses`,
-            {
-              headers: { Authorization: `Bearer ${accessToken}` },
-              timeout: 30000, // 30 second timeout
-            },
+          const businessResponse = await this.axiosWithRetry(
+            () => axios.get(
+              `https://graph.facebook.com/v${this.metaApiVersion}/me/businesses`,
+              {
+                timeout: 60000,
+                headers: { Authorization: `Bearer ${accessToken}` },
+              },
+            ),
           );
 
           if (!businessResponse.data.data || businessResponse.data.data.length === 0) {
@@ -153,12 +191,14 @@ export class WabaService {
           this.logger.debug(`Found business: ${businessId}`);
 
           // Get WABA info from business
-          const wabaResponse = await axios.get(
-            `https://graph.facebook.com/v${this.metaApiVersion}/${businessId}/owned_whatsapp_business_accounts`,
-            {
-              headers: { Authorization: `Bearer ${accessToken}` },
-              timeout: 30000, // 30 second timeout
-            },
+          const wabaResponse = await this.axiosWithRetry(
+            () => axios.get(
+              `https://graph.facebook.com/v${this.metaApiVersion}/${businessId}/owned_whatsapp_business_accounts`,
+              {
+                timeout: 60000,
+                headers: { Authorization: `Bearer ${accessToken}` },
+              },
+            ),
           );
 
           if (!wabaResponse.data.data || wabaResponse.data.data.length === 0) {
@@ -189,12 +229,14 @@ export class WabaService {
       }
 
       // Get phone numbers
-      const phoneResponse = await axios.get(
-        `https://graph.facebook.com/v${this.metaApiVersion}/${wabaId}/phone_numbers`,
-        {
-          headers: { Authorization: `Bearer ${accessToken}` },
-          timeout: 30000, // 30 second timeout
-        },
+      const phoneResponse = await this.axiosWithRetry(
+        () => axios.get(
+          `https://graph.facebook.com/v${this.metaApiVersion}/${wabaId}/phone_numbers`,
+          {
+            timeout: 60000,
+            headers: { Authorization: `Bearer ${accessToken}` },
+          },
+        ),
       );
 
       if (!phoneResponse.data.data || phoneResponse.data.data.length === 0) {
@@ -250,26 +292,36 @@ export class WabaService {
         webhookVerified: wabaAccount.webhookVerified,
       };
     } catch (error) {
-      // Mark code as used if we got a code reuse error
-      if (error.response?.data?.error?.code === 100 && 
-          error.response?.data?.error?.error_subcode === 36009) {
-        this.usedCodes.add(code);
-      }
-      
       const errorMessage = error.response?.data?.error?.message || error.message;
       const errorCode = error.response?.data?.error?.code || error.response?.status;
       const errorSubcode = error.response?.data?.error?.error_subcode;
       
-      // Handle timeout errors
-      if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
-        this.logger.error(`Request timeout during WABA callback for shop ${state}`);
+      // Handle network timeout errors
+      if (error.code === 'ETIMEDOUT' || error.message?.includes('timeout') || error.message?.includes('ETIMEDOUT')) {
+        this.logger.error(`Network timeout connecting to Meta API for shop ${state}`, {
+          error: errorMessage,
+          code: error.code,
+        });
         throw new BadRequestException(
-          'Request to Meta API timed out. Please try again. If the problem persists, check your network connection.'
+          'Connection to Meta API timed out. This may be due to network issues or Meta API being temporarily unavailable. Please try again in a few moments.'
+        );
+      }
+      
+      // Handle connection errors
+      if (error.code === 'ECONNRESET' || error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+        this.logger.error(`Network connection error to Meta API for shop ${state}`, {
+          error: errorMessage,
+          code: error.code,
+        });
+        throw new BadRequestException(
+          'Unable to connect to Meta API. Please check your network connection and try again.'
         );
       }
       
       // Handle specific OAuth code reuse error
       if (errorCode === 100 && errorSubcode === 36009) {
+        // Mark code as used to prevent future attempts
+        this.usedCodes.add(code);
         this.logger.warn(`Authorization code already used for shop ${state}`);
         throw new BadRequestException(
           'This authorization code has already been used. Please go back to the onboarding page and start a new connection.'
@@ -282,7 +334,7 @@ export class WabaService {
           error: errorMessage,
           code: errorCode,
           subcode: errorSubcode,
-          axiosError: error.code,
+          networkError: error.code,
           response: error.response?.data,
           stack: error.stack,
         },
@@ -305,19 +357,22 @@ export class WabaService {
 
       // 1. Register app-level subscription (if using App Access Token)
       try {
-        await axios.post(
-          `https://graph.facebook.com/v${this.metaApiVersion}/${this.metaAppId}/subscriptions`,
-          {
-            object: 'whatsapp_business_account',
-            callback_url: webhookUrl,
-            verify_token: verifyToken,
-            fields: ['messages', 'message_status'],
-          },
-          {
-            params: {
-              access_token: `${this.metaAppId}|${this.metaAppSecret}`, // App Access Token
+        await this.axiosWithRetry(
+          () => axios.post(
+            `https://graph.facebook.com/v${this.metaApiVersion}/${this.metaAppId}/subscriptions`,
+            {
+              object: 'whatsapp_business_account',
+              callback_url: webhookUrl,
+              verify_token: verifyToken,
+              fields: ['messages', 'message_status'],
             },
-          },
+            {
+              timeout: 60000,
+              params: {
+                access_token: `${this.metaAppId}|${this.metaAppSecret}`, // App Access Token
+              },
+            },
+          ),
         );
         this.logger.log('App-level webhook subscription registered successfully');
       } catch (appError) {
@@ -328,17 +383,20 @@ export class WabaService {
 
       // 2. Subscribe WABA to app (WABA-level subscription)
       try {
-        await axios.post(
-          `https://graph.facebook.com/v${this.metaApiVersion}/${wabaId}/subscribed_apps`,
-          {
-            subscribed_fields: ['messages', 'message_status'],
-          },
-          {
-            headers: { Authorization: `Bearer ${accessToken}` },
-            params: {
-              access_token: accessToken,
+        await this.axiosWithRetry(
+          () => axios.post(
+            `https://graph.facebook.com/v${this.metaApiVersion}/${wabaId}/subscribed_apps`,
+            {
+              subscribed_fields: ['messages', 'message_status'],
             },
-          },
+            {
+              timeout: 60000,
+              headers: { Authorization: `Bearer ${accessToken}` },
+              params: {
+                access_token: accessToken,
+              },
+            },
+          ),
         );
         
         this.logger.log(`Webhook registered successfully for WABA ${wabaId}`);

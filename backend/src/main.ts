@@ -70,7 +70,8 @@ async function bootstrap() {
   });
 
   // Handle POST requests to root and common bot scanner paths
-  const botScannerPaths = ['/', '/xmlrpc.php', '/wp-admin', '/wp-login.php', '/.env', '/admin'];
+  // These are typically from bots/scanners and can be safely ignored
+  const botScannerPaths = ['/', '/xmlrpc.php', '/wp-admin', '/wp-login.php', '/.env', '/admin', '/administrator'];
   botScannerPaths.forEach(path => {
     httpAdapter.post(path, (req, res) => {
       // Silently return 404 for bot scanners to reduce log noise
