@@ -67,23 +67,43 @@ export class WabaService {
       
       this.logger.debug(`Exchanging authorization code for access token (redirect_uri: ${redirectUri})`);
       
-      const tokenResponse = await axios.get(
-        `https://graph.facebook.com/v${this.metaApiVersion}/oauth/access_token`,
-        {
-          params: {
-            client_id: this.metaAppId,
-            client_secret: this.metaAppSecret,
-            redirect_uri: redirectUri,
-            code,
+      let tokenResponse;
+      try {
+        tokenResponse = await axios.get(
+          `https://graph.facebook.com/v${this.metaApiVersion}/oauth/access_token`,
+          {
+            params: {
+              client_id: this.metaAppId,
+              client_secret: this.metaAppSecret,
+              redirect_uri: redirectUri,
+              code,
+            },
+            timeout: 30000, // 30 second timeout
           },
-        },
-      );
+        );
+        this.logger.debug('Token exchange request completed');
+      } catch (tokenError: any) {
+        this.logger.error('Token exchange failed', {
+          error: tokenError.message,
+          code: tokenError.code,
+          status: tokenError.response?.status,
+          data: tokenError.response?.data,
+        });
+        throw tokenError;
+      }
 
       // Mark code as used immediately after successful exchange
       this.usedCodes.add(code);
       
       // Clean up old codes periodically (optional - to prevent memory leak)
       // You could also use a TTL-based cache like Redis in production
+      
+      if (!tokenResponse.data || !tokenResponse.data.access_token) {
+        this.logger.error('Token response missing access_token', {
+          response: tokenResponse.data,
+        });
+        throw new BadRequestException('Invalid response from Meta API: missing access token');
+      }
       
       const accessToken = tokenResponse.data.access_token;
       this.logger.debug('Successfully obtained access token');
@@ -100,6 +120,7 @@ export class WabaService {
             params: {
               fields: 'id,name',
             },
+            timeout: 30000, // 30 second timeout
           },
         );
 
@@ -118,6 +139,7 @@ export class WabaService {
             `https://graph.facebook.com/v${this.metaApiVersion}/me/businesses`,
             {
               headers: { Authorization: `Bearer ${accessToken}` },
+              timeout: 30000, // 30 second timeout
             },
           );
 
@@ -135,6 +157,7 @@ export class WabaService {
             `https://graph.facebook.com/v${this.metaApiVersion}/${businessId}/owned_whatsapp_business_accounts`,
             {
               headers: { Authorization: `Bearer ${accessToken}` },
+              timeout: 30000, // 30 second timeout
             },
           );
 
@@ -170,6 +193,7 @@ export class WabaService {
         `https://graph.facebook.com/v${this.metaApiVersion}/${wabaId}/phone_numbers`,
         {
           headers: { Authorization: `Bearer ${accessToken}` },
+          timeout: 30000, // 30 second timeout
         },
       );
 
@@ -226,9 +250,23 @@ export class WabaService {
         webhookVerified: wabaAccount.webhookVerified,
       };
     } catch (error) {
+      // Mark code as used if we got a code reuse error
+      if (error.response?.data?.error?.code === 100 && 
+          error.response?.data?.error?.error_subcode === 36009) {
+        this.usedCodes.add(code);
+      }
+      
       const errorMessage = error.response?.data?.error?.message || error.message;
       const errorCode = error.response?.data?.error?.code || error.response?.status;
       const errorSubcode = error.response?.data?.error?.error_subcode;
+      
+      // Handle timeout errors
+      if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+        this.logger.error(`Request timeout during WABA callback for shop ${state}`);
+        throw new BadRequestException(
+          'Request to Meta API timed out. Please try again. If the problem persists, check your network connection.'
+        );
+      }
       
       // Handle specific OAuth code reuse error
       if (errorCode === 100 && errorSubcode === 36009) {
@@ -243,6 +281,8 @@ export class WabaService {
         {
           error: errorMessage,
           code: errorCode,
+          subcode: errorSubcode,
+          axiosError: error.code,
           response: error.response?.data,
           stack: error.stack,
         },

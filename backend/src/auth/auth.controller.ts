@@ -83,8 +83,16 @@ export class AuthController {
     // GET requests from frontend will have Accept: application/json header
     // Direct browser redirects from Facebook won't have this header
     const acceptHeader = req.headers.accept || '';
+    const contentType = req.headers['content-type'] || '';
     const isApiCall = acceptHeader.includes('application/json') || 
-                      req.query['api'] === 'true';
+                      contentType.includes('application/json') ||
+                      req.query['api'] === 'true' ||
+                      req.headers['x-requested-with'] === 'XMLHttpRequest';
+    
+    // Ensure JSON response for API calls
+    if (isApiCall) {
+      res.setHeader('Content-Type', 'application/json');
+    }
 
     // Handle OAuth errors from Meta
     if (error) {
@@ -141,8 +149,18 @@ export class AuthController {
         ? error.message 
         : error.message || 'Failed to process OAuth callback';
       
+      // Log the error for debugging
+      console.error('OAuth callback error:', {
+        message: errorMessage,
+        code: error instanceof HttpException ? error.getStatus() : 500,
+        stack: error.stack,
+        isApiCall,
+      });
+      
       if (isApiCall) {
-        return res.status(500).json({
+        // Always return JSON for API calls
+        const statusCode = error instanceof HttpException ? error.getStatus() : 500;
+        return res.status(statusCode).json({
           error: 'callback_processing_error',
           error_description: errorMessage,
         });
