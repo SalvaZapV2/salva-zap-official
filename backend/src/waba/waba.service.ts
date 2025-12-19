@@ -12,6 +12,9 @@ export class WabaService {
   private readonly frontendCallbackUrl: string;
   private readonly logger = new Logger(WabaService.name);
 
+  // Add a Set to track used codes (in-memory cache)
+  private usedCodes = new Set<string>();
+
   constructor(
     private prisma: PrismaService,
     private configService: ConfigService,
@@ -48,6 +51,14 @@ export class WabaService {
   async handleCallback(code: string, state: string) {
     this.logger.log(`Processing WABA callback for shop ${state}`);
     
+    // Check if code was already used
+    if (this.usedCodes.has(code)) {
+      this.logger.warn(`Authorization code ${code} was already used`);
+      throw new BadRequestException(
+        'This authorization code has already been used. Please initiate a new connection from the onboarding page.'
+      );
+    }
+    
     try {
       // Exchange code for access token
       const redirectUri = this.configService.get<string>('FRONTEND_CALLBACK_URL') || 
@@ -68,6 +79,12 @@ export class WabaService {
         },
       );
 
+      // Mark code as used immediately after successful exchange
+      this.usedCodes.add(code);
+      
+      // Clean up old codes periodically (optional - to prevent memory leak)
+      // You could also use a TTL-based cache like Redis in production
+      
       const accessToken = tokenResponse.data.access_token;
       this.logger.debug('Successfully obtained access token');
 
@@ -211,6 +228,15 @@ export class WabaService {
     } catch (error) {
       const errorMessage = error.response?.data?.error?.message || error.message;
       const errorCode = error.response?.data?.error?.code || error.response?.status;
+      const errorSubcode = error.response?.data?.error?.error_subcode;
+      
+      // Handle specific OAuth code reuse error
+      if (errorCode === 100 && errorSubcode === 36009) {
+        this.logger.warn(`Authorization code already used for shop ${state}`);
+        throw new BadRequestException(
+          'This authorization code has already been used. Please go back to the onboarding page and start a new connection.'
+        );
+      }
       
       this.logger.error(
         `WABA callback failed for shop ${state}`,

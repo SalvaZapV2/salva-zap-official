@@ -69,6 +69,18 @@ async function bootstrap() {
     return res.sendFile(path.join(frontendPath, 'index.html'));
   });
 
+  // Handle POST requests to root (for health checks, webhooks, etc.)
+  httpAdapter.post('/', (req, res) => {
+    // Option 1: Return 405 Method Not Allowed
+    res.status(405).json({
+      error: 'Method Not Allowed',
+      message: 'POST requests are not supported on this endpoint',
+    });
+    
+    // Option 2: Or silently ignore (if it's just health checks)
+    // res.status(200).json({ status: 'ok' });
+  });
+
   // Verify database connection
   const prismaService = app.get(PrismaService);
   try {
