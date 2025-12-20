@@ -82,6 +82,16 @@ async function bootstrap() {
     });
   });
 
+  // Handle POST requests to static asset paths (e.g., /_next/*, /static/*)
+  // These are typically from bots/scanners probing for Next.js installations
+  // This middleware runs before the exception filter, so it won't log warnings
+  app.use((req, res, next) => {
+    if (req.method === 'POST' && (req.path.startsWith('/_next/') || req.path.startsWith('/static/'))) {
+      return res.status(404).end();
+    }
+    next();
+  });
+
   // Verify database connection
   const prismaService = app.get(PrismaService);
   try {
