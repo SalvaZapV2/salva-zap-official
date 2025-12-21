@@ -56,6 +56,16 @@ async function bootstrap() {
     ],
   });
 
+  // Handle WebDAV and uncommon HTTP methods (typically from bots/scanners)
+  // PROPFIND, MKCOL, MOVE, COPY, LOCK, UNLOCK, etc. - return silent 404
+  const webdavMethods = ['PROPFIND', 'MKCOL', 'MOVE', 'COPY', 'LOCK', 'UNLOCK', 'PROPPATCH', 'SEARCH'];
+  app.use((req, res, next) => {
+    if (webdavMethods.includes(req.method)) {
+      return res.status(404).end();
+    }
+    next();
+  });
+
   // Serve built frontend from / (production)
   const frontendPath = path.join(__dirname, '..', 'frontend');
   app.use(express.static(frontendPath));
