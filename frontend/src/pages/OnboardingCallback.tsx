@@ -102,12 +102,29 @@ const OnboardingCallback = () => {
           sessionStorage.setItem('processed_oauth_codes', JSON.stringify(processedCodes));
         }
         
+        // Check if phone numbers are needed
+        if (data.needsPhoneNumber || !data.hasPhoneNumbers) {
+          setStatus('success');
+          setMessage(
+            'WhatsApp Business Account connected successfully!\n\n' +
+            '⚠️ IMPORTANT: No phone numbers found in your WABA account.\n\n' +
+            'To add a phone number:\n' +
+            '1. Go to https://business.facebook.com/\n' +
+            '2. Navigate to your WhatsApp Business Account\n' +
+            '3. Add a phone number through Meta\'s interface\n' +
+            '4. Return here and refresh your connection\n\n' +
+            'You can still use the platform, but messaging features will be limited until a phone number is added.'
+          );
+          toast.success('WABA connected (phone number needed)');
+        } else {
           setStatus('success');
           setMessage('WhatsApp Business Account connected successfully!');
           toast.success('WABA connected successfully');
-          setTimeout(() => {
-            navigate('/onboarding');
-          }, 2000);
+        }
+        
+        setTimeout(() => {
+          navigate('/onboarding');
+        }, data.needsPhoneNumber ? 5000 : 2000);
       })
       .catch((error) => {
         setStatus('error');
@@ -139,7 +156,27 @@ const OnboardingCallback = () => {
             {status === 'success' && (
               <>
                 <CheckCircle2 className="h-12 w-12 text-success mb-4" />
-                <p className="text-success font-medium">{message}</p>
+                <div className="text-success font-medium text-center space-y-2 max-h-96 overflow-y-auto w-full">
+                  {message.split('\n').map((line, idx) => (
+                    <p 
+                      key={idx} 
+                      className={
+                        line.startsWith('⚠️') || line.startsWith('IMPORTANT') || 
+                        line.startsWith('To add') || line.startsWith('1.') || 
+                        line.startsWith('2.') || line.startsWith('3.') || 
+                        line.startsWith('4.') || line.startsWith('You can')
+                          ? 'text-left text-sm text-amber-600' 
+                          : line.includes('successfully')
+                          ? 'text-lg font-bold text-success'
+                          : line.trim() === ''
+                          ? 'hidden'
+                          : 'text-sm'
+                      }
+                    >
+                      {line}
+                    </p>
+                  ))}
+                </div>
                 <p className="text-sm text-muted-foreground mt-2">
                   Redirecting to onboarding...
                 </p>

@@ -322,22 +322,40 @@ export class WabaService {
       }
 
       // Get phone numbers
-      const phoneResponse = await this.axiosWithRetry(
-        () => axios.get(
-          `https://graph.facebook.com/v${this.metaApiVersion}/${wabaId}/phone_numbers`,
-          {
-            timeout: 60000,
-            headers: { Authorization: `Bearer ${accessToken}` },
-          },
-        ),
-      );
+      let phoneId: string | null = null;
+      let displayNumber: string | null = null;
+      let hasPhoneNumbers = false;
 
-      if (!phoneResponse.data.data || phoneResponse.data.data.length === 0) {
-        throw new BadRequestException('No phone numbers found in WABA account');
+      try {
+        const phoneResponse = await this.axiosWithRetry(
+          () => axios.get(
+            `https://graph.facebook.com/v${this.metaApiVersion}/${wabaId}/phone_numbers`,
+            {
+              timeout: 60000,
+              headers: { Authorization: `Bearer ${accessToken}` },
+            },
+          ),
+        );
+
+        if (phoneResponse.data.data && phoneResponse.data.data.length > 0) {
+          phoneId = phoneResponse.data.data[0].id;
+          displayNumber = phoneResponse.data.data[0].display_phone_number || phoneResponse.data.data[0].verified_name || phoneResponse.data.data[0].id;
+          hasPhoneNumbers = true;
+          this.logger.debug(`Found phone number: ${displayNumber} (ID: ${phoneId})`);
+        } else {
+          this.logger.warn(`No phone numbers found in WABA ${wabaId}. WABA will be saved but user needs to add phone numbers.`);
+        }
+      } catch (phoneError: any) {
+        this.logger.warn(`Failed to fetch phone numbers for WABA ${wabaId}:`, phoneError.message);
+        // Continue without phone numbers - user can add them later
       }
 
-      const phoneId = phoneResponse.data.data[0].id;
-      const displayNumber = phoneResponse.data.data[0].display_phone_number || phoneResponse.data.data[0].verified_name;
+      // If no phone numbers found, use placeholder values
+      if (!hasPhoneNumbers) {
+        phoneId = `pending-${wabaId}`;
+        displayNumber = 'No phone number - Add one in Meta Business Manager';
+        this.logger.log(`WABA ${wabaId} connected without phone numbers. User needs to add phone numbers via Meta Business Manager.`);
+      }
 
       // Encrypt and store token
       const encryptedToken = EncryptionUtil.encrypt(accessToken);
@@ -376,13 +394,15 @@ export class WabaService {
         this.logger.error(`Failed to register webhook for WABA ${wabaId}:`, err);
       });
 
-      this.logger.log(`Successfully connected WABA ${wabaId} for shop ${state}`);
+      this.logger.log(`Successfully connected WABA ${wabaId} for shop ${state}${hasPhoneNumbers ? '' : ' (no phone numbers - user needs to add them)'}`);
 
       return {
         wabaId: wabaAccount.wabaId,
         phoneId: wabaAccount.phoneId,
         displayNumber: wabaAccount.displayNumber,
         webhookVerified: wabaAccount.webhookVerified,
+        hasPhoneNumbers,
+        needsPhoneNumber: !hasPhoneNumbers,
       };
     } catch (error) {
       const errorMessage = error.response?.data?.error?.message || error.message;
