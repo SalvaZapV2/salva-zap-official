@@ -58,6 +58,24 @@ const Conversas = () => {
     enabled: !!selectedConversationId,
   });
 
+  // Mark conversation as read when viewing messages
+  const markAsReadMutation = useMutation({
+    mutationFn: (conversationId: string) => api.markConversationAsRead(conversationId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["conversations", activeWaba?.id] });
+    },
+  });
+
+  useEffect(() => {
+    if (selectedConversationId && messagesResponse && !messagesLoading) {
+      // Mark as read when messages are loaded
+      const conversation = conversations.find((c) => c.id === selectedConversationId);
+      if (conversation && conversation.unreadCount > 0) {
+        markAsReadMutation.mutate(selectedConversationId);
+      }
+    }
+  }, [selectedConversationId, messagesResponse, messagesLoading, conversations]);
+
   const sendMessageMutation = useMutation({
     mutationFn: async () => {
       if (!activeWaba || !selectedConversationId) return;

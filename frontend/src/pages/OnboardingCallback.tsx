@@ -102,12 +102,12 @@ const OnboardingCallback = () => {
           sessionStorage.setItem('processed_oauth_codes', JSON.stringify(processedCodes));
         }
         
-        setStatus('success');
-        setMessage('WhatsApp Business Account connected successfully!');
-        toast.success('WABA connected successfully');
-        setTimeout(() => {
-          navigate('/onboarding');
-        }, 2000);
+          setStatus('success');
+          setMessage('WhatsApp Business Account connected successfully!');
+          toast.success('WABA connected successfully');
+          setTimeout(() => {
+            navigate('/onboarding');
+          }, 2000);
       })
       .catch((error) => {
         setStatus('error');

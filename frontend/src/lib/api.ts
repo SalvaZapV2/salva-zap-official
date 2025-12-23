@@ -199,6 +199,12 @@ class ApiClient {
     );
   }
 
+  async markConversationAsRead(conversationId: string): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>(`/inbox/conversations/${conversationId}/read`, {
+      method: 'PUT',
+    });
+  }
+
   // Templates
   async getTemplates(wabaAccountId: string): Promise<Template[]> {
     return this.request<Template[]>(`/templates?wabaAccountId=${wabaAccountId}`);

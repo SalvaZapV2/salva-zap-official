@@ -1,0 +1,88 @@
+STAGE 1 – MERCHANT MODULE (OFFICIAL WHATSAPP API)
+FINAL CURRENT REQUIREMENTS
+
+PROJECT GOAL
+Provide a production-ready tool that allows any merchant to connect their own Official WhatsApp Business Account (WABA) using Meta’s Embedded Signup, send and receive messages, manage conversations, and run campaigns.
+The tool must be live, published, and usable in production while future stages are developed.
+
+GENERAL RULES
+- Use ONLY Meta Official Embedded Signup.
+- No System User, no manual tokens, no fixed WABA.
+- Each merchant connects their own WABA (multi-tenant).
+- Backend must be deployed and online.
+- Frontend users do not access code, only working UI.
+- Unofficial API already exists and is NOT developed here.
+
+1) API SELECTION PAGE
+- A public page with two buttons:
+  - Unofficial API → https://salvazap.com/autenticar
+  - Official API → start Embedded Signup via backend endpoint
+- No shared login or logic between APIs.
+
+2) EMBEDDED SIGNUP FLOW
+Backend must:
+- Start Embedded Signup
+- Receive OAuth code
+- Exchange code for access token
+- Automatically fetch:
+  - Business ID
+  - WABA ID
+  - Phone Number ID
+  - Display Name
+- Save data encrypted per tenant
+
+Meta handles:
+- Business selection
+- WABA creation (if first time)
+- Phone number creation/selection
+- Terms acceptance
+
+3) WEBHOOKS
+- Register webhook automatically
+- Validate GET challenge with verify token
+- Validate POST signature (x-hub-signature-256)
+- Store raw events
+- Process all events via BullMQ
+- Return HTTP 200 immediately
+
+4) MESSAGING
+- Send text messages (24h window)
+- Send template messages
+- Receive inbound messages
+- Track statuses: sent, delivered, read
+
+5) INBOX
+- List conversations
+- View full message threads
+- Update unread counts
+
+6) CAMPAIGNS
+- Create campaigns
+- Send messages via worker
+- Rate limit: 10 msg/sec per phone
+- Track campaign status
+
+7) SECURITY
+- JWT authentication
+- Token encryption
+- Signature validation
+- Rate limiting
+
+8) INFRASTRUCTURE
+- NestJS
+- Node 18+
+- MySQL
+- Redis
+- BullMQ
+- Docker
+
+9) PERMISSIONS
+- business_management NOT required
+- Only whatsapp_business_management and whatsapp_business_messaging
+
+STAGE 1 IS COMPLETE WHEN:
+- Merchant can connect a real WABA
+- Merchant can create or use existing number
+- Messages can be sent and received
+- Campaigns run successfully
+- Tool is live and usable

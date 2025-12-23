@@ -75,5 +75,12 @@ export class InboxService {
       },
     };
   }
+
+  async markConversationAsRead(conversationId: string) {
+    await this.prisma.conversation.update({
+      where: { id: conversationId },
+      data: { unreadCount: 0 },
+    });
+  }
 }
 

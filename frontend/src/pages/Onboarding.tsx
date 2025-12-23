@@ -141,10 +141,6 @@ const Onboarding = () => {
                   <CheckCircle2 className="h-4 w-4 text-primary" />
                   whatsapp_business_management
                 </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-primary" />
-                  business_management
-                </li>
               </ul>
             </div>
             <Button className="w-full bg-gradient-primary hover:opacity-90">

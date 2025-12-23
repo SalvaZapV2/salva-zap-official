@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, Put, UseGuards } from '@nestjs/common';
 import { InboxService } from './inbox.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 
@@ -27,6 +27,12 @@ export class InboxController {
     @Query('limit') limit: string = '50',
   ) {
     return this.inboxService.getConversationMessages(id, parseInt(page), parseInt(limit));
+  }
+
+  @Put('conversations/:id/read')
+  async markAsRead(@Param('id') id: string) {
+    await this.inboxService.markConversationAsRead(id);
+    return { success: true };
   }
 }
 
