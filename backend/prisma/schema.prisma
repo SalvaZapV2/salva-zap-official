@@ -34,7 +34,7 @@ model WabaAccount {
   wabaId          String        @unique
   phoneId         String
   displayNumber   String
-  encryptedToken  String
+  encryptedToken  String        @db.Text
   tokenExpiresAt  DateTime?
   webhookVerified Boolean       @default(false)
   createdAt       DateTime      @default(now())
