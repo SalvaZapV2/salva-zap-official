@@ -137,6 +137,22 @@ export class WabaService {
       const accessToken = tokenResponse.data.access_token;
       this.logger.debug('Successfully obtained access token');
 
+      // Debug: Check token permissions (optional, for debugging)
+      try {
+        const debugResponse = await axios.get(
+          `https://graph.facebook.com/v${this.metaApiVersion}/debug_token`,
+          {
+            params: {
+              input_token: accessToken,
+              access_token: `${this.metaAppId}|${this.metaAppSecret}`, // App access token
+            },
+          },
+        );
+        this.logger.debug('Token debug info:', JSON.stringify(debugResponse.data.data, null, 2));
+      } catch (debugError) {
+        this.logger.warn('Failed to debug token:', debugError.message);
+      }
+
       // Get WABA accounts directly from user (only method - no business_management needed)
       let wabaId: string | null = null;
       
@@ -160,7 +176,7 @@ export class WabaService {
         } else {
           throw new BadRequestException(
             'No WhatsApp Business Accounts found. ' +
-            'Please ensure your WhatsApp Business Account is directly accessible to your Facebook account. ' +
+            'Please ensure you completed the Embedded Signup flow and created/selected a WhatsApp Business Account. ' +
             'If your WABA is managed through Facebook Business Manager, you may need to ensure you have direct access or contact your Business Manager admin.'
           );
         }
@@ -177,20 +193,21 @@ export class WabaService {
         // Handle specific error codes
         if (errorCode === 100) {
           // Error 100: Field doesn't exist on User node - user doesn't have WABA directly accessible
+          // This means the user either doesn't have a WABA or didn't complete Embedded Signup properly
           throw new BadRequestException(
             'Your Facebook account does not have direct access to a WhatsApp Business Account. ' +
-            '\n\n' +
-            'SOLUTION 1: Create a WABA during Embedded Signup\n' +
-            'If you don\'t have a WABA yet, Meta\'s Embedded Signup will create one for you. ' +
-            'Please ensure you complete the entire Embedded Signup flow and accept all terms.\n\n' +
-            'SOLUTION 2: Make existing WABA directly accessible\n' +
-            'If your WABA is in Facebook Business Manager:\n' +
+            'This usually means you need to create a WABA or ensure it\'s directly accessible.\n\n' +
+            'IMPORTANT: When connecting via Embedded Signup, you MUST:\n' +
+            '1. Complete the ENTIRE Embedded Signup flow (don\'t just authorize permissions)\n' +
+            '2. Create or select a WhatsApp Business Account during the flow\n' +
+            '3. Accept all terms and conditions\n' +
+            '4. Complete phone number verification if prompted\n\n' +
+            'If you already have a WABA in Business Manager:\n' +
             '1. Go to https://business.facebook.com/\n' +
             '2. Navigate to Business Settings > Accounts > WhatsApp Accounts\n' +
-            '3. Ensure your personal Facebook account has Admin access\n' +
-            '4. Or remove the WABA from Business Manager and connect it directly to your personal account\n\n' +
-            'SOLUTION 3: Create a new WABA\n' +
-            'Go to https://business.facebook.com/ and create a new WhatsApp Business Account directly under your personal account.'
+            '3. Ensure your personal Facebook account has Admin access to the WABA\n' +
+            '4. Or create a new WABA directly under your personal account\n\n' +
+            'Then try connecting again.'
           );
         }
 
