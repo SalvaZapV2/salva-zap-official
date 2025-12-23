@@ -137,7 +137,11 @@ export class WabaService {
       const accessToken = tokenResponse.data.access_token;
       this.logger.debug('Successfully obtained access token');
 
-      // Debug: Check token permissions (optional, for debugging)
+      // Get token debug info to extract WABA IDs from granular scopes
+      let tokenDebugInfo: any = null;
+      let wabaIdsFromToken: string[] = [];
+      let businessIds: string[] = [];
+      
       try {
         const debugResponse = await axios.get(
           `https://graph.facebook.com/v${this.metaApiVersion}/debug_token`,
@@ -148,101 +152,166 @@ export class WabaService {
             },
           },
         );
-        this.logger.debug('Token debug info:', JSON.stringify(debugResponse.data.data, null, 2));
+        tokenDebugInfo = debugResponse.data.data;
+        this.logger.debug('Token debug info:', JSON.stringify(tokenDebugInfo, null, 2));
+        
+        // Extract WABA IDs from granular_scopes
+        if (tokenDebugInfo?.granular_scopes) {
+          for (const scope of tokenDebugInfo.granular_scopes) {
+            if (scope.scope === 'whatsapp_business_management' && scope.target_ids) {
+              wabaIdsFromToken = scope.target_ids;
+              this.logger.debug(`Found WABA IDs from token: ${wabaIdsFromToken.join(', ')}`);
+            }
+            if (scope.scope === 'business_management' && scope.target_ids) {
+              businessIds = scope.target_ids;
+              this.logger.debug(`Found Business IDs from token: ${businessIds.join(', ')}`);
+            }
+          }
+        }
       } catch (debugError) {
         this.logger.warn('Failed to debug token:', debugError.message);
       }
 
-      // Get WABA accounts directly from user (only method - no business_management needed)
+      // Get WABA accounts - try multiple methods
       let wabaId: string | null = null;
       
-      try {
-        const directWabaResponse = await this.axiosWithRetry(
-          () => axios.get(
-            `https://graph.facebook.com/v${this.metaApiVersion}/me/owned_whatsapp_business_accounts`,
-            {
-              timeout: 60000,
-              headers: { Authorization: `Bearer ${accessToken}` },
-              params: {
-                fields: 'id,name',
+      // Method 1: Try to use WABA IDs directly from token granular scopes
+      if (wabaIdsFromToken.length > 0) {
+        this.logger.debug(`Attempting to use WABA IDs from token granular scopes: ${wabaIdsFromToken[0]}`);
+        try {
+          // Try to get WABA info directly using the ID from granular scopes
+          const wabaInfoResponse = await this.axiosWithRetry(
+            () => axios.get(
+              `https://graph.facebook.com/v${this.metaApiVersion}/${wabaIdsFromToken[0]}`,
+              {
+                timeout: 60000,
+                headers: { Authorization: `Bearer ${accessToken}` },
+                params: {
+                  fields: 'id,name',
+                },
               },
-            },
-          ),
-        );
-
-        if (directWabaResponse.data.data && directWabaResponse.data.data.length > 0) {
-          wabaId = directWabaResponse.data.data[0].id;
-          this.logger.debug(`Found WABA directly: ${wabaId}`);
-        } else {
-          throw new BadRequestException(
-            'No WhatsApp Business Accounts found. ' +
-            'Please ensure you completed the Embedded Signup flow and created/selected a WhatsApp Business Account. ' +
-            'If your WABA is managed through Facebook Business Manager, you may need to ensure you have direct access or contact your Business Manager admin.'
+            ),
           );
-        }
-      } catch (directError: any) {
-        const errorMsg = directError.response?.data?.error?.message || directError.message;
-        const errorCode = directError.response?.data?.error?.code;
-        
-        this.logger.error('Direct WABA access failed:', {
-          error: errorMsg,
-          code: errorCode,
-          response: directError.response?.data,
-        });
-
-        // Handle specific error codes
-        if (errorCode === 100) {
-          // Extract connection type from state if available
-          const connectionType = state?.includes(':') ? state.split(':')[1] : 'new';
           
-          if (connectionType === 'existing') {
+          if (wabaInfoResponse.data && wabaInfoResponse.data.id) {
+            wabaId = wabaInfoResponse.data.id;
+            this.logger.debug(`Found WABA using ID from token granular scopes: ${wabaId}`);
+          }
+        } catch (wabaIdError: any) {
+          this.logger.warn(`Failed to access WABA using ID from token: ${wabaIdError.message}`);
+        }
+      }
+      
+      // Method 2: Try accessing through Business Manager if we have business_management permission
+      if (!wabaId && businessIds.length > 0) {
+        this.logger.debug(`Attempting to access WABAs through Business Manager: ${businessIds[0]}`);
+        try {
+          const businessWabaResponse = await this.axiosWithRetry(
+            () => axios.get(
+              `https://graph.facebook.com/v${this.metaApiVersion}/${businessIds[0]}/owned_whatsapp_business_accounts`,
+              {
+                timeout: 60000,
+                headers: { Authorization: `Bearer ${accessToken}` },
+                params: {
+                  fields: 'id,name',
+                },
+              },
+            ),
+          );
+          
+          if (businessWabaResponse.data.data && businessWabaResponse.data.data.length > 0) {
+            wabaId = businessWabaResponse.data.data[0].id;
+            this.logger.debug(`Found WABA through Business Manager: ${wabaId}`);
+          }
+        } catch (businessError: any) {
+          this.logger.warn(`Failed to access WABA through Business Manager: ${businessError.message}`);
+        }
+      }
+      
+      // Method 3: Try direct access via /me/owned_whatsapp_business_accounts (original method)
+      if (!wabaId) {
+        try {
+          const directWabaResponse = await this.axiosWithRetry(
+            () => axios.get(
+              `https://graph.facebook.com/v${this.metaApiVersion}/me/owned_whatsapp_business_accounts`,
+              {
+                timeout: 60000,
+                headers: { Authorization: `Bearer ${accessToken}` },
+                params: {
+                  fields: 'id,name',
+                },
+              },
+            ),
+          );
+
+          if (directWabaResponse.data.data && directWabaResponse.data.data.length > 0) {
+            wabaId = directWabaResponse.data.data[0].id;
+            this.logger.debug(`Found WABA directly: ${wabaId}`);
+          }
+        } catch (directError: any) {
+          const errorMsg = directError.response?.data?.error?.message || directError.message;
+          const errorCode = directError.response?.data?.error?.code;
+          
+          this.logger.error('Direct WABA access failed:', {
+            error: errorMsg,
+            code: errorCode,
+            response: directError.response?.data,
+          });
+
+          // Handle specific error codes
+          if (errorCode === 100) {
+            // Extract connection type from state if available
+            const connectionType = state?.includes(':') ? state.split(':')[1] : 'new';
+            
+            if (connectionType === 'existing') {
+              throw new BadRequestException(
+                'Não foi possível acessar sua WABA existente.\n\n' +
+                'SOLUÇÃO: Certifique-se de que sua WABA está diretamente acessível à sua conta pessoal do Facebook:\n\n' +
+                '1. Se sua WABA está no Business Manager:\n' +
+                '   - Acesse https://business.facebook.com/\n' +
+                '   - Vá em Configurações da Empresa > Contas > Contas do WhatsApp\n' +
+                '   - Certifique-se de que sua conta pessoal do Facebook tem acesso Admin à WABA\n' +
+                '   - Ou remova a WABA do Business Manager e conecte-a diretamente à sua conta pessoal\n\n' +
+                '2. Se você não tem uma WABA diretamente acessível:\n' +
+                '   - Crie uma nova WABA em https://business.facebook.com/\n' +
+                '   - Ou use a opção "Criar nova WABA" na tela de conexão\n\n' +
+                'Depois, tente conectar novamente.'
+              );
+            } else {
+              throw new BadRequestException(
+                'Sua conta do Facebook não tem acesso direto a uma Conta WhatsApp Business.\n\n' +
+                'IMPORTANTE: Ao conectar via Cadastro Incorporado, você DEVE:\n' +
+                '1. Completar TODO o fluxo de Cadastro Incorporado (não apenas autorizar permissões)\n' +
+                '2. Criar ou selecionar uma Conta WhatsApp Business durante o fluxo\n' +
+                '3. Aceitar todos os termos e condições\n' +
+                '4. Completar a verificação do número de telefone se solicitado\n\n' +
+                'Se você já tem uma WABA no Business Manager:\n' +
+                '1. Acesse https://business.facebook.com/\n' +
+                '2. Vá em Configurações da Empresa > Contas > Contas do WhatsApp\n' +
+                '3. Certifique-se de que sua conta pessoal do Facebook tem acesso Admin à WABA\n' +
+                '4. Ou crie uma nova WABA diretamente sob sua conta pessoal\n\n' +
+                'Depois, tente conectar novamente.'
+              );
+            }
+          }
+
+          if (errorCode === 200 || errorMsg?.includes('permission') || errorMsg?.includes('business_management')) {
             throw new BadRequestException(
-              'Não foi possível acessar sua WABA existente.\n\n' +
-              'SOLUÇÃO: Certifique-se de que sua WABA está diretamente acessível à sua conta pessoal do Facebook:\n\n' +
-              '1. Se sua WABA está no Business Manager:\n' +
-              '   - Acesse https://business.facebook.com/\n' +
-              '   - Vá em Configurações da Empresa > Contas > Contas do WhatsApp\n' +
-              '   - Certifique-se de que sua conta pessoal do Facebook tem acesso Admin à WABA\n' +
-              '   - Ou remova a WABA do Business Manager e conecte-a diretamente à sua conta pessoal\n\n' +
-              '2. Se você não tem uma WABA diretamente acessível:\n' +
-              '   - Crie uma nova WABA em https://business.facebook.com/\n' +
-              '   - Ou use a opção "Criar nova WABA" na tela de conexão\n\n' +
-              'Depois, tente conectar novamente.'
-            );
-          } else {
-            throw new BadRequestException(
-              'Sua conta do Facebook não tem acesso direto a uma Conta WhatsApp Business.\n\n' +
-              'IMPORTANTE: Ao conectar via Cadastro Incorporado, você DEVE:\n' +
-              '1. Completar TODO o fluxo de Cadastro Incorporado (não apenas autorizar permissões)\n' +
-              '2. Criar ou selecionar uma Conta WhatsApp Business durante o fluxo\n' +
-              '3. Aceitar todos os termos e condições\n' +
-              '4. Completar a verificação do número de telefone se solicitado\n\n' +
-              'Se você já tem uma WABA no Business Manager:\n' +
-              '1. Acesse https://business.facebook.com/\n' +
-              '2. Vá em Configurações da Empresa > Contas > Contas do WhatsApp\n' +
-              '3. Certifique-se de que sua conta pessoal do Facebook tem acesso Admin à WABA\n' +
-              '4. Ou crie uma nova WABA diretamente sob sua conta pessoal\n\n' +
-              'Depois, tente conectar novamente.'
+              'Unable to access WhatsApp Business Account. ' +
+              'Please ensure:\n' +
+              '1. Your WhatsApp Business Account is directly accessible to your Facebook account\n' +
+              '2. You have granted whatsapp_business_management permission during OAuth\n' +
+              '3. If your WABA is in Business Manager, ensure you have direct access or ask your admin to grant you access\n' +
+              '4. Try disconnecting and reconnecting your WABA account'
             );
           }
-        }
 
-        if (errorCode === 200 || errorMsg?.includes('permission') || errorMsg?.includes('business_management')) {
           throw new BadRequestException(
-            'Unable to access WhatsApp Business Account. ' +
-            'Please ensure:\n' +
-            '1. Your WhatsApp Business Account is directly accessible to your Facebook account\n' +
-            '2. You have granted whatsapp_business_management permission during OAuth\n' +
-            '3. If your WABA is in Business Manager, ensure you have direct access or ask your admin to grant you access\n' +
-            '4. Try disconnecting and reconnecting your WABA account'
+            `Failed to access WhatsApp Business Account: ${errorMsg || 'Unknown error'}. ` +
+            'Please ensure your WABA is directly accessible to your Facebook account. ' +
+            'If you don\'t have a WABA yet, you can create one during the Embedded Signup flow.'
           );
         }
-
-        throw new BadRequestException(
-          `Failed to access WhatsApp Business Account: ${errorMsg || 'Unknown error'}. ` +
-          'Please ensure your WABA is directly accessible to your Facebook account. ' +
-          'If you don\'t have a WABA yet, you can create one during the Embedded Signup flow.'
-        );
       }
 
       if (!wabaId) {
