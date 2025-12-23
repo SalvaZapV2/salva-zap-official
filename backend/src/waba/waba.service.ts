@@ -174,8 +174,27 @@ export class WabaService {
           response: directError.response?.data,
         });
 
-        // Provide helpful error message
-        if (errorCode === 200 || errorMsg?.includes('permission')) {
+        // Handle specific error codes
+        if (errorCode === 100) {
+          // Error 100: Field doesn't exist on User node - user doesn't have WABA directly accessible
+          throw new BadRequestException(
+            'Your Facebook account does not have direct access to a WhatsApp Business Account. ' +
+            '\n\n' +
+            'SOLUTION 1: Create a WABA during Embedded Signup\n' +
+            'If you don\'t have a WABA yet, Meta\'s Embedded Signup will create one for you. ' +
+            'Please ensure you complete the entire Embedded Signup flow and accept all terms.\n\n' +
+            'SOLUTION 2: Make existing WABA directly accessible\n' +
+            'If your WABA is in Facebook Business Manager:\n' +
+            '1. Go to https://business.facebook.com/\n' +
+            '2. Navigate to Business Settings > Accounts > WhatsApp Accounts\n' +
+            '3. Ensure your personal Facebook account has Admin access\n' +
+            '4. Or remove the WABA from Business Manager and connect it directly to your personal account\n\n' +
+            'SOLUTION 3: Create a new WABA\n' +
+            'Go to https://business.facebook.com/ and create a new WhatsApp Business Account directly under your personal account.'
+          );
+        }
+
+        if (errorCode === 200 || errorMsg?.includes('permission') || errorMsg?.includes('business_management')) {
           throw new BadRequestException(
             'Unable to access WhatsApp Business Account. ' +
             'Please ensure:\n' +
@@ -188,7 +207,8 @@ export class WabaService {
 
         throw new BadRequestException(
           `Failed to access WhatsApp Business Account: ${errorMsg || 'Unknown error'}. ` +
-          'Please ensure your WABA is directly accessible to your Facebook account.'
+          'Please ensure your WABA is directly accessible to your Facebook account. ' +
+          'If you don\'t have a WABA yet, you can create one during the Embedded Signup flow.'
         );
       }
 

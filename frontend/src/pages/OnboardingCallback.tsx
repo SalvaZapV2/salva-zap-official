@@ -148,7 +148,13 @@ const OnboardingCallback = () => {
             {status === 'error' && (
               <>
                 <XCircle className="h-12 w-12 text-destructive mb-4" />
-                <p className="text-destructive font-medium">{message}</p>
+                <div className="text-destructive font-medium text-center space-y-2">
+                  {message.split('\n').map((line, idx) => (
+                    <p key={idx} className={line.startsWith('SOLUTION') || line.startsWith('1.') || line.startsWith('2.') || line.startsWith('3.') || line.startsWith('4.') ? 'text-left' : ''}>
+                      {line}
+                    </p>
+                  ))}
+                </div>
                 <Button
                   className="mt-4"
                   onClick={() => navigate('/onboarding')}
