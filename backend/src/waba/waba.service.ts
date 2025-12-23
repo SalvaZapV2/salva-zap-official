@@ -29,7 +29,7 @@ export class WabaService {
     }
   }
 
-  async getEmbeddedSignupUrl(shopId: string, state?: string): Promise<string> {
+  async getEmbeddedSignupUrl(shopId: string, connectionType: 'new' | 'existing' = 'new', state?: string): Promise<string> {
     // Use frontend callback URL for redirect - Meta will redirect user there
     const redirectUri = this.configService.get<string>('FRONTEND_CALLBACK_URL') || 
       this.configService.get<string>('REDIRECT_URI') ||
@@ -42,10 +42,10 @@ export class WabaService {
       `client_id=${this.metaAppId}&` +
       `redirect_uri=${encodeURIComponent(redirectUri)}&` +
       `scope=${encodeURIComponent(scopes)}&` +
-      `state=${state || shopId}&` +
+      `state=${encodeURIComponent(state || `${shopId}:${connectionType}`)}&` +
       `response_type=code`;
 
-    this.logger.debug(`Generated OAuth URL with redirect_uri: ${redirectUri}`);
+    this.logger.debug(`Generated OAuth URL with redirect_uri: ${redirectUri}, connectionType: ${connectionType}`);
     return url;
   }
 
@@ -192,23 +192,39 @@ export class WabaService {
 
         // Handle specific error codes
         if (errorCode === 100) {
-          // Error 100: Field doesn't exist on User node - user doesn't have WABA directly accessible
-          // This means the user either doesn't have a WABA or didn't complete Embedded Signup properly
-          throw new BadRequestException(
-            'Your Facebook account does not have direct access to a WhatsApp Business Account. ' +
-            'This usually means you need to create a WABA or ensure it\'s directly accessible.\n\n' +
-            'IMPORTANT: When connecting via Embedded Signup, you MUST:\n' +
-            '1. Complete the ENTIRE Embedded Signup flow (don\'t just authorize permissions)\n' +
-            '2. Create or select a WhatsApp Business Account during the flow\n' +
-            '3. Accept all terms and conditions\n' +
-            '4. Complete phone number verification if prompted\n\n' +
-            'If you already have a WABA in Business Manager:\n' +
-            '1. Go to https://business.facebook.com/\n' +
-            '2. Navigate to Business Settings > Accounts > WhatsApp Accounts\n' +
-            '3. Ensure your personal Facebook account has Admin access to the WABA\n' +
-            '4. Or create a new WABA directly under your personal account\n\n' +
-            'Then try connecting again.'
-          );
+          // Extract connection type from state if available
+          const connectionType = state?.includes(':') ? state.split(':')[1] : 'new';
+          
+          if (connectionType === 'existing') {
+            throw new BadRequestException(
+              'Não foi possível acessar sua WABA existente.\n\n' +
+              'SOLUÇÃO: Certifique-se de que sua WABA está diretamente acessível à sua conta pessoal do Facebook:\n\n' +
+              '1. Se sua WABA está no Business Manager:\n' +
+              '   - Acesse https://business.facebook.com/\n' +
+              '   - Vá em Configurações da Empresa > Contas > Contas do WhatsApp\n' +
+              '   - Certifique-se de que sua conta pessoal do Facebook tem acesso Admin à WABA\n' +
+              '   - Ou remova a WABA do Business Manager e conecte-a diretamente à sua conta pessoal\n\n' +
+              '2. Se você não tem uma WABA diretamente acessível:\n' +
+              '   - Crie uma nova WABA em https://business.facebook.com/\n' +
+              '   - Ou use a opção "Criar nova WABA" na tela de conexão\n\n' +
+              'Depois, tente conectar novamente.'
+            );
+          } else {
+            throw new BadRequestException(
+              'Sua conta do Facebook não tem acesso direto a uma Conta WhatsApp Business.\n\n' +
+              'IMPORTANTE: Ao conectar via Cadastro Incorporado, você DEVE:\n' +
+              '1. Completar TODO o fluxo de Cadastro Incorporado (não apenas autorizar permissões)\n' +
+              '2. Criar ou selecionar uma Conta WhatsApp Business durante o fluxo\n' +
+              '3. Aceitar todos os termos e condições\n' +
+              '4. Completar a verificação do número de telefone se solicitado\n\n' +
+              'Se você já tem uma WABA no Business Manager:\n' +
+              '1. Acesse https://business.facebook.com/\n' +
+              '2. Vá em Configurações da Empresa > Contas > Contas do WhatsApp\n' +
+              '3. Certifique-se de que sua conta pessoal do Facebook tem acesso Admin à WABA\n' +
+              '4. Ou crie uma nova WABA diretamente sob sua conta pessoal\n\n' +
+              'Depois, tente conectar novamente.'
+            );
+          }
         }
 
         if (errorCode === 200 || errorMsg?.includes('permission') || errorMsg?.includes('business_management')) {

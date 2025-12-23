@@ -3,6 +3,8 @@ import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 import {
   MessageSquare,
   ExternalLink,
@@ -11,6 +13,8 @@ import {
   Users,
   Building2,
   ArrowRight,
+  Plus,
+  Link as LinkIcon,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
@@ -21,11 +25,12 @@ const ConectarWhatsApp = () => {
   const navigate = useNavigate();
   const { activeShop, activeWaba } = useActiveWaba();
   const [isRedirecting, setIsRedirecting] = useState(false);
+  const [connectionType, setConnectionType] = useState<'new' | 'existing'>('new');
 
   const startEmbeddedSignup = useMutation({
     mutationFn: async () => {
       if (!activeShop) throw new Error("Crie ou selecione uma empresa primeiro");
-      const { url } = await api.getEmbeddedSignupUrl(activeShop.id);
+      const { url } = await api.getEmbeddedSignupUrl(activeShop.id, connectionType);
       return url;
     },
     onSuccess: (url) => {
@@ -90,136 +95,113 @@ const ConectarWhatsApp = () => {
         </p>
       </div>
 
-      {/* Cards de Opção */}
-      <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Card 1 - Conexão Individual (Lojista) */}
-        <Card className="bg-card border-[#25D366]/30 hover:border-[#25D366]/50 transition-colors">
+      {/* Connection Type Selection */}
+      <div className="max-w-2xl mx-auto">
+        <Card className="bg-card border-border">
           <CardHeader>
-            <div className="w-12 h-12 rounded-lg bg-[#25D366]/20 flex items-center justify-center mb-4">
-              <Building2 className="h-6 w-6 text-[#25D366]" />
-            </div>
-            <CardTitle className="text-[#25D366]">
-              Conectar minha empresa ao WhatsApp Oficial
-            </CardTitle>
+            <CardTitle>Como você deseja conectar?</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-6">
-            <p className="text-muted-foreground">
-              Conecte sua empresa diretamente à API oficial do WhatsApp Business. 
-              Ideal para lojistas e empresas individuais.
-            </p>
-
-            <div className="bg-muted/30 rounded-lg p-4 text-sm">
-              <p>
-                Ao clicar em <strong>Conectar Conta Oficial</strong>, você será 
-                direcionado à página oficial da Meta. Faça login, selecione sua página 
-                e número de WhatsApp e finalize a conexão.
-              </p>
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex items-start gap-3">
-                <Badge className="bg-[#25D366] h-6 w-6 rounded-full flex items-center justify-center p-0 shrink-0">
-                  1
-                </Badge>
-                <div>
-                  <p className="font-medium">Login na Meta</p>
-                  <p className="text-sm text-muted-foreground">
-                    Use sua conta do Facebook Business
-                  </p>
-                </div>
+          <CardContent>
+            <RadioGroup value={connectionType} onValueChange={(value) => setConnectionType(value as 'new' | 'existing')}>
+              <div className="flex items-start space-x-3 space-y-0 rounded-md border p-4 mb-3 hover:bg-accent cursor-pointer">
+                <RadioGroupItem value="new" id="new" className="mt-1" />
+                <Label htmlFor="new" className="flex-1 cursor-pointer">
+                  <div className="flex items-start gap-3">
+                    <Plus className="h-5 w-5 text-[#25D366] mt-0.5" />
+                    <div className="flex-1">
+                      <p className="font-semibold">Criar nova Conta WhatsApp Business (WABA)</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Você não tem uma WABA ainda e quer criar uma agora através do Cadastro Incorporado (Embedded Signup) da Meta.
+                        A Meta criará automaticamente uma nova conta para você durante o processo.
+                      </p>
+                    </div>
+                  </div>
+                </Label>
               </div>
-              <div className="flex items-start gap-3">
-                <Badge className="bg-[#25D366] h-6 w-6 rounded-full flex items-center justify-center p-0 shrink-0">
-                  2
-                </Badge>
-                <div>
-                  <p className="font-medium">Selecione sua Página</p>
-                  <p className="text-sm text-muted-foreground">
-                    Escolha a página associada ao WhatsApp Business
-                  </p>
-                </div>
+              <div className="flex items-start space-x-3 space-y-0 rounded-md border p-4 hover:bg-accent cursor-pointer">
+                <RadioGroupItem value="existing" id="existing" className="mt-1" />
+                <Label htmlFor="existing" className="flex-1 cursor-pointer">
+                  <div className="flex items-start gap-3">
+                    <LinkIcon className="h-5 w-5 text-[#0EA5E9] mt-0.5" />
+                    <div className="flex-1">
+                      <p className="font-semibold">Conectar WABA existente</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Você já tem uma Conta WhatsApp Business (WABA) e quer conectá-la a esta plataforma.
+                        <strong className="block mt-2 text-amber-600">
+                          Importante: Sua WABA deve estar diretamente acessível à sua conta pessoal do Facebook.
+                          Se estiver no Business Manager, certifique-se de ter acesso Admin.
+                        </strong>
+                      </p>
+                    </div>
+                  </div>
+                </Label>
               </div>
-              <div className="flex items-start gap-3">
-                <Badge className="bg-[#25D366] h-6 w-6 rounded-full flex items-center justify-center p-0 shrink-0">
-                  3
-                </Badge>
-                <div>
-                  <p className="font-medium">Confirme o Número</p>
-                  <p className="text-sm text-muted-foreground">
-                    Verifique e confirme o número de WhatsApp
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <Button
-              className="w-full bg-[#25D366] hover:bg-[#25D366]/90 h-12 text-lg"
-              onClick={handleConnect}
-              disabled={isRedirecting || startEmbeddedSignup.isPending || !activeShop}
-            >
-              {isRedirecting || startEmbeddedSignup.isPending ? (
-                <>
-                  <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full mr-2" />
-                  Conectando...
-                </>
-              ) : (
-                <>
-                  <ExternalLink className="h-5 w-5 mr-2" />
-                  Conectar Conta Oficial
-                </>
-              )}
-            </Button>
+            </RadioGroup>
           </CardContent>
         </Card>
+      </div>
 
-        {/* Card 2 - Conexão Agência */}
-        <Card className="bg-card border-[#0EA5E9]/30 hover:border-[#0EA5E9]/50 transition-colors">
-          <CardHeader>
-            <div className="w-12 h-12 rounded-lg bg-[#0EA5E9]/20 flex items-center justify-center mb-4">
-              <Users className="h-6 w-6 text-[#0EA5E9]" />
+      {/* Connection Button */}
+      <div className="max-w-2xl mx-auto">
+        <Card className="bg-card border-border">
+          <CardContent className="p-6">
+            <div className="space-y-4">
+              {connectionType === 'new' ? (
+                <div className="space-y-3">
+                  <h3 className="font-semibold">O que acontecerá:</h3>
+                  <ul className="text-sm text-muted-foreground space-y-2">
+                    <li className="flex items-start gap-2">
+                      <CheckCircle className="h-4 w-4 text-[#25D366] mt-0.5 shrink-0" />
+                      <span>A Meta criará uma nova WABA para você durante o processo</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle className="h-4 w-4 text-[#25D366] mt-0.5 shrink-0" />
+                      <span>Você precisará aceitar os termos e condições</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle className="h-4 w-4 text-[#25D366] mt-0.5 shrink-0" />
+                      <span>Pode ser necessário verificar um número de telefone</span>
+                    </li>
+                  </ul>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <h3 className="font-semibold">Requisitos:</h3>
+                  <ul className="text-sm text-muted-foreground space-y-2">
+                    <li className="flex items-start gap-2">
+                      <CheckCircle className="h-4 w-4 text-[#0EA5E9] mt-0.5 shrink-0" />
+                      <span>Sua WABA deve estar diretamente acessível à sua conta pessoal do Facebook</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle className="h-4 w-4 text-[#0EA5E9] mt-0.5 shrink-0" />
+                      <span>Se estiver no Business Manager, você precisa ter acesso Admin</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle className="h-4 w-4 text-[#0EA5E9] mt-0.5 shrink-0" />
+                      <span>Você precisará autorizar as permissões necessárias</span>
+                    </li>
+                  </ul>
+                </div>
+              )}
+              
+              <Button
+                className="w-full bg-[#25D366] hover:bg-[#25D366]/90 h-12 text-lg"
+                onClick={handleConnect}
+                disabled={isRedirecting || startEmbeddedSignup.isPending || !activeShop}
+              >
+                {isRedirecting || startEmbeddedSignup.isPending ? (
+                  <>
+                    <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full mr-2" />
+                    Conectando...
+                  </>
+                ) : (
+                  <>
+                    <ExternalLink className="h-5 w-5 mr-2" />
+                    {connectionType === 'new' ? 'Criar e Conectar WABA' : 'Conectar WABA Existente'}
+                  </>
+                )}
+              </Button>
             </div>
-            <CardTitle className="text-[#0EA5E9]">
-              Sou Agência ou Gestor
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <p className="text-muted-foreground">
-              Gerencie diversas empresas de clientes com uma única conta. 
-              Perfeito para agências de marketing e gestores de múltiplas contas.
-            </p>
-
-            <div className="bg-[#0EA5E9]/5 rounded-lg p-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <Shield className="h-5 w-5 text-[#0EA5E9]" />
-                <span className="font-medium text-[#0EA5E9]">Benefícios do Módulo Agência</span>
-              </div>
-              <ul className="text-sm text-muted-foreground space-y-2">
-                <li className="flex items-center gap-2">
-                  <CheckCircle className="h-4 w-4 text-[#0EA5E9]" />
-                  Painel centralizado para todas as empresas
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle className="h-4 w-4 text-[#0EA5E9]" />
-                  Gerencie conexões de múltiplos clientes
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle className="h-4 w-4 text-[#0EA5E9]" />
-                  Métricas consolidadas por empresa
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle className="h-4 w-4 text-[#0EA5E9]" />
-                  Faturamento simplificado
-                </li>
-              </ul>
-            </div>
-
-            <Button
-              className="w-full bg-[#0EA5E9] hover:bg-[#0EA5E9]/90 h-12 text-lg"
-              onClick={() => navigate("/agencia")}
-            >
-              Ir para Gerenciar Múltiplas Empresas
-              <ArrowRight className="h-5 w-5 ml-2" />
-            </Button>
           </CardContent>
         </Card>
       </div>

@@ -139,9 +139,11 @@ class ApiClient {
   }
 
   // WABA
-  async getEmbeddedSignupUrl(shopId?: string): Promise<{ url: string }> {
-    const params = shopId ? `?shopId=${shopId}` : '';
-    return this.request<{ url: string }>(`/waba/embedded/start${params}`);
+  async getEmbeddedSignupUrl(shopId?: string, connectionType: 'new' | 'existing' = 'new'): Promise<{ url: string }> {
+    const params = new URLSearchParams();
+    if (shopId) params.append('shopId', shopId);
+    if (connectionType) params.append('connectionType', connectionType);
+    return this.request<{ url: string }>(`/waba/embedded/start?${params.toString()}`);
   }
 
   // Messages

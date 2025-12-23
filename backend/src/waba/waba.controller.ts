@@ -9,8 +9,12 @@ export class WabaController {
   constructor(private wabaService: WabaService) {}
 
   @Get('embedded/start')
-  async startEmbeddedSignup(@CurrentUser() user: any, @Query('shopId') shopId: string) {
-    const url = await this.wabaService.getEmbeddedSignupUrl(shopId || user.id);
+  async startEmbeddedSignup(
+    @CurrentUser() user: any, 
+    @Query('shopId') shopId: string,
+    @Query('connectionType') connectionType: 'new' | 'existing' = 'new'
+  ) {
+    const url = await this.wabaService.getEmbeddedSignupUrl(shopId || user.id, connectionType);
     return { url };
   }
 
