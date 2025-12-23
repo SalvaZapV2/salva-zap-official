@@ -87,46 +87,47 @@ export class AuthController {
     const isApiCall = acceptHeader.includes('application/json') || 
                       contentType.includes('application/json') ||
                       req.query['api'] === 'true' ||
-                      req.headers['x-requested-with'] === 'XMLHttpRequest';
+                      req.headers['x-requested-with'] === 'XMLHttpRequest' ||
+                      req.path.startsWith('/api'); // Always treat /api routes as API calls
     
-    // Ensure JSON response for API calls
+    // Ensure JSON response for API calls - set this early to prevent HTML fallback
     if (isApiCall) {
       res.setHeader('Content-Type', 'application/json');
     }
 
-    // Handle OAuth errors from Meta
-    if (error) {
-      if (isApiCall) {
-        return res.status(400).json({
+    try {
+      // Handle OAuth errors from Meta
+      if (error) {
+        if (isApiCall) {
+          return res.status(400).json({
+            error: error || 'unknown_error',
+            error_reason: errorReason || '',
+            error_description: errorDescription || 'An error occurred during OAuth authentication',
+          });
+        }
+        const errorParams = new URLSearchParams({
           error: error || 'unknown_error',
           error_reason: errorReason || '',
           error_description: errorDescription || 'An error occurred during OAuth authentication',
         });
+        return res.redirect(`${frontendCallbackUrl}?${errorParams.toString()}`);
       }
-      const errorParams = new URLSearchParams({
-        error: error || 'unknown_error',
-        error_reason: errorReason || '',
-        error_description: errorDescription || 'An error occurred during OAuth authentication',
-      });
-      return res.redirect(`${frontendCallbackUrl}?${errorParams.toString()}`);
-    }
 
-    // Handle missing authorization code
-    if (!code) {
-      if (isApiCall) {
-        return res.status(400).json({
+      // Handle missing authorization code
+      if (!code) {
+        if (isApiCall) {
+          return res.status(400).json({
+            error: 'missing_code',
+            error_description: 'No authorization code received from Meta',
+          });
+        }
+        const errorParams = new URLSearchParams({
           error: 'missing_code',
           error_description: 'No authorization code received from Meta',
         });
+        return res.redirect(`${frontendCallbackUrl}?${errorParams.toString()}`);
       }
-      const errorParams = new URLSearchParams({
-        error: 'missing_code',
-        error_description: 'No authorization code received from Meta',
-      });
-      return res.redirect(`${frontendCallbackUrl}?${errorParams.toString()}`);
-    }
 
-    try {
       // Process the callback
       const result = await this.wabaService.handleCallback(code, state);
       
@@ -155,11 +156,18 @@ export class AuthController {
         code: error instanceof HttpException ? error.getStatus() : 500,
         stack: error.stack,
         isApiCall,
+        path: req.path,
+        headers: {
+          accept: req.headers.accept,
+          'content-type': req.headers['content-type'],
+        },
       });
       
+      // Always return JSON for API calls, even on error
       if (isApiCall) {
-        // Always return JSON for API calls
         const statusCode = error instanceof HttpException ? error.getStatus() : 500;
+        // Ensure Content-Type is set before sending response
+        res.setHeader('Content-Type', 'application/json');
         return res.status(statusCode).json({
           error: 'callback_processing_error',
           error_description: errorMessage,
