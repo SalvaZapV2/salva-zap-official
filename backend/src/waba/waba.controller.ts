@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards, Post, Param } from '@nestjs/common';
 import { WabaService } from './waba.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -10,21 +10,34 @@ export class WabaController {
 
   @Get('embedded/start')
   async startEmbeddedSignup(
-    @CurrentUser() user: any, 
+    @CurrentUser() user: any,
     @Query('shopId') shopId: string,
-    @Query('connectionType') connectionType: 'new' | 'existing' = 'new'
+    @Query('connectionType') connectionType: 'new' | 'existing' = 'new',
   ) {
-    const url = await this.wabaService.getEmbeddedSignupUrl(shopId || user.id, connectionType);
+    const url = await this.wabaService.getEmbeddedSignupUrl(
+      shopId || user.id,
+      connectionType,
+    );
     return { url };
   }
 
   @Get('embedded/callback')
-  async handleCallback(@Query('code') code: string, @Query('state') state: string) {
+  async handleCallback(
+    @Query('code') code: string,
+    @Query('state') state: string,
+  ) {
     if (!code) {
       return { error: 'Missing authorization code' };
     }
     const result = await this.wabaService.handleCallback(code, state);
     return result;
   }
-}
 
+  @Post(':id/webhook/register')
+  async registerWebhook(@Param('id') id: string) {
+    // Register webhook for the specified WABA account id
+    await this.wabaService.registerWebhookForAccount(id);
+    // Return simple success object
+    return { success: true };
+  }
+}

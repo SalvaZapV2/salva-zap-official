@@ -4,13 +4,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import translations from "@/i18n/pt-BR.json";
 import { api } from "@/lib/api";
 
 const OnboardingCallback = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
-  const [message, setMessage] = useState('Processing...');
+  const t = (translations as any).onboardingCallback;
+  const [message, setMessage] = useState(t?.processing || 'Processando...');
+  const [signupUrl, setSignupUrl] = useState<string | null>(null);
   const processedRef = useRef<string | null>(null); // Track processed codes
 
   useEffect(() => {
@@ -21,14 +24,14 @@ const OnboardingCallback = () => {
     if (error) {
       setStatus('error');
       setMessage(error);
-      toast.error(`OAuth error: ${error}`);
+      toast.error(t?.oauthError ? t.oauthError.replace('{{error}}', error) : `Erro OAuth: ${error}`);
       return;
     }
 
     if (!code) {
       setStatus('error');
-      setMessage('No authorization code received');
-      toast.error('No authorization code received');
+      setMessage(t?.noAuthCodeReceived || 'Nenhum código de autorização recebido');
+      toast.error(t?.noAuthCodeReceived || 'Nenhum código de autorização recebido');
       return;
     }
 
@@ -42,8 +45,8 @@ const OnboardingCallback = () => {
     const processedCodes = JSON.parse(sessionStorage.getItem('processed_oauth_codes') || '[]');
     if (processedCodes.includes(code)) {
       setStatus('error');
-      setMessage('This authorization code has already been used. Please try connecting again.');
-      toast.error('Authorization code already used');
+      setMessage(t?.authCodeAlreadyUsed || 'Este código de autorização já foi utilizado. Por favor, tente conectar novamente.');
+      toast.error(t?.authorizationCodeUsedShortToast || 'Código de autorização já utilizado');
       setTimeout(() => {
         navigate('/onboarding');
       }, 3000);
@@ -87,7 +90,7 @@ const OnboardingCallback = () => {
               processedCodes.push(code);
               sessionStorage.setItem('processed_oauth_codes', JSON.stringify(processedCodes));
             }
-            throw new Error('This authorization code has already been used. Please try connecting again from the onboarding page.');
+            throw new Error(t?.authCodeAlreadyUsed || 'Este código de autorização já foi utilizado. Por favor, tente conectar novamente.');
           }
           
           throw new Error(errorData.error_description || errorData.message || errorData.error || `HTTP error! status: ${response.status}`);
@@ -102,24 +105,26 @@ const OnboardingCallback = () => {
           sessionStorage.setItem('processed_oauth_codes', JSON.stringify(processedCodes));
         }
         
+        // Handle the case where Meta indicates the user needs to complete the Embedded Signup
+        if (data.needsEmbeddedSignup && data.signupUrl) {
+          // Instead of auto-redirecting (which can be confusing), show an explicit CTA so the user
+          // is aware they need to complete the Embedded Signup flow in Meta.
+          setStatus('success');
+          setMessage(t?.needsEmbeddedSignup || 'Sua conta do Facebook precisa concluir o Cadastro Incorporado do Meta para criar uma WABA. Clique no botão abaixo para abrir o fluxo no Meta.');
+          setSignupUrl(data.signupUrl);
+          toast(t?.openMetaToast || 'Abra o Meta para concluir a criação da WABA');
+          return; // stop further processing
+        }
+
         // Check if phone numbers are needed
         if (data.needsPhoneNumber || !data.hasPhoneNumbers) {
           setStatus('success');
-          setMessage(
-            'WhatsApp Business Account connected successfully!\n\n' +
-            '⚠️ IMPORTANT: No phone numbers found in your WABA account.\n\n' +
-            'To add a phone number:\n' +
-            '1. Go to https://business.facebook.com/\n' +
-            '2. Navigate to your WhatsApp Business Account\n' +
-            '3. Add a phone number through Meta\'s interface\n' +
-            '4. Return here and refresh your connection\n\n' +
-            'You can still use the platform, but messaging features will be limited until a phone number is added.'
-          );
-          toast.success('WABA connected (phone number needed)');
+          setMessage(t?.wabaConnectedNoPhone || 'Conta do WhatsApp conectada com sucesso!\n\n⚠️ IMPORTANTE: Nenhum número de telefone encontrado na sua conta WABA.\n\nPara adicionar um número:\n1. Acesse https://business.facebook.com/\n2. Vá para sua Conta Oficial do WhatsApp\n3. Adicione um número pelo painel do Meta\n4. Retorne aqui e atualize sua conexão\n\nVocê ainda pode usar a plataforma, mas os recursos de envio serão limitados até que um número seja adicionado.');
+          toast.success(t?.wabaConnectedNoPhone || 'Conta do WhatsApp conectada com sucesso! (número necessário)');
         } else {
           setStatus('success');
-          setMessage('WhatsApp Business Account connected successfully!');
-          toast.success('WABA connected successfully');
+          setMessage(t?.wabaConnectedSuccess || 'Conta do WhatsApp conectada com sucesso!');
+          toast.success(t?.wabaConnectedSuccess || 'Conta do WhatsApp conectada com sucesso!');
         }
         
         setTimeout(() => {
@@ -139,10 +144,10 @@ const OnboardingCallback = () => {
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="text-2xl font-bold text-center">
-            Processing Connection
+            {t?.processingTitle || 'Processando Conexão'}
           </CardTitle>
           <CardDescription className="text-center">
-            Please wait while we connect your WhatsApp Business Account
+            {t?.processingDescription || 'Aguarde enquanto conectamos sua Conta Oficial do WhatsApp'}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -161,12 +166,10 @@ const OnboardingCallback = () => {
                     <p 
                       key={idx} 
                       className={
-                        line.startsWith('⚠️') || line.startsWith('IMPORTANT') || 
-                        line.startsWith('To add') || line.startsWith('1.') || 
-                        line.startsWith('2.') || line.startsWith('3.') || 
-                        line.startsWith('4.') || line.startsWith('You can')
+                        line.startsWith('⚠️') || line.toUpperCase().includes('IMPORTANTE') || 
+                        line.startsWith('Para adicionar') || /^[1-4]\.\s/.test(line) || line.startsWith('Você')
                           ? 'text-left text-sm text-amber-600' 
-                          : line.includes('successfully')
+                          : (line.toLowerCase().includes('conect') && line.toLowerCase().includes('sucesso'))
                           ? 'text-lg font-bold text-success'
                           : line.trim() === ''
                           ? 'hidden'
@@ -177,9 +180,14 @@ const OnboardingCallback = () => {
                     </p>
                   ))}
                 </div>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Redirecting to onboarding...
-                </p>
+                {signupUrl ? (
+                  <div className="mt-4 flex flex-col items-center">
+                    <p className="text-sm text-muted-foreground mb-3">{t?.needsEmbeddedSignup || 'Sua conta do Facebook precisa concluir o Cadastro Incorporado do Meta para criar uma WABA. Clique no botão abaixo para abrir o fluxo no Meta.'}</p>
+                    <Button onClick={() => { window.location.href = signupUrl; }} className="bg-[#25D366] hover:bg-[#25D366]/90">{t?.openMetaButton || 'Ir para o Meta'}</Button>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground mt-2">{t?.redirectingToOnboarding || 'Redirecionando para o onboarding...'}</p>
+                )}
               </>
             )}
             {status === 'error' && (
@@ -187,7 +195,7 @@ const OnboardingCallback = () => {
                 <XCircle className="h-12 w-12 text-destructive mb-4" />
                 <div className="text-destructive font-medium text-center space-y-2">
                   {message.split('\n').map((line, idx) => (
-                    <p key={idx} className={line.startsWith('SOLUTION') || line.startsWith('1.') || line.startsWith('2.') || line.startsWith('3.') || line.startsWith('4.') ? 'text-left' : ''}>
+                    <p key={idx} className={(line.toUpperCase().startsWith('SOLUTION') || line.toUpperCase().startsWith('SOLUÇÃO') || /^[1-4]\.\s/.test(line)) ? 'text-left' : ''}>
                       {line}
                     </p>
                   ))}
@@ -196,7 +204,7 @@ const OnboardingCallback = () => {
                   className="mt-4"
                   onClick={() => navigate('/onboarding')}
                 >
-                  Go Back to Onboarding
+                  {t?.goBackToOnboarding || 'Voltar para Onboarding'}
                 </Button>
               </>
             )}

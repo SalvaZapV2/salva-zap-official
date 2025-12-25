@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Body, Param, Patch, UseGuards, Query } from '@nestjs/common';
 import { TemplatesService } from './templates.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { IsString, IsNotEmpty, IsOptional } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsArray } from 'class-validator';
 
 class SubmitTemplateDto {
   @IsString()
@@ -16,7 +16,9 @@ class SubmitTemplateDto {
   @IsNotEmpty()
   category: string;
 
-  components: any[];
+  @IsOptional()
+  @IsArray()
+  components?: any[];
 }
 
 @Controller('templates')

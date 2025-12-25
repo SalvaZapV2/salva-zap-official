@@ -76,19 +76,28 @@ export class AuthController {
     @Res() res: Response,
     @Req() req: Request,
   ) {
-    const frontendCallbackUrl = this.configService.get<string>('FRONTEND_CALLBACK_URL') || 
-      `${this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000'}/onboarding/callback`;
+    // Hardcoded frontend callback URL (development)
+    const frontendCallbackUrl = 'http://localhost:3001/onboarding/callback';
 
     // Check if this is an API call (from frontend) or a redirect (from Facebook)
     // GET requests from frontend will have Accept: application/json header
     // Direct browser redirects from Facebook won't have this header
-    const acceptHeader = req.headers.accept || '';
-    const contentType = req.headers['content-type'] || '';
-    const isApiCall = acceptHeader.includes('application/json') || 
-                      contentType.includes('application/json') ||
-                      req.query['api'] === 'true' ||
-                      req.headers['x-requested-with'] === 'XMLHttpRequest' ||
-                      req.path.startsWith('/api'); // Always treat /api routes as API calls
+    const acceptHeader = (req.headers.accept || '').toString();
+    const contentType = (req.headers['content-type'] || '').toString();
+
+    // Treat as API call when the client explicitly requests JSON or uses X-Requested-With
+    // Do NOT automatically classify all '/api' paths as API calls because Meta will redirect
+    // the browser to an '/api' path during OAuth redirects; in that case we want to redirect
+    // the browser to the frontend callback page instead of returning raw JSON.
+    const isExplicitJsonRequest = acceptHeader.includes('application/json') ||
+      contentType.includes('application/json') ||
+      req.query['api'] === 'true' ||
+      req.headers['x-requested-with'] === 'XMLHttpRequest';
+
+    // If the incoming browser redirect prefers HTML (or doesn't explicitly request JSON),
+    // treat it as a user redirect and forward to the frontend callback URL.
+    const prefersHtml = acceptHeader.includes('text/html') || !acceptHeader;
+    const isApiCall = isExplicitJsonRequest && !prefersHtml;
     
     // Ensure JSON response for API calls - set this early to prevent HTML fallback
     if (isApiCall) {

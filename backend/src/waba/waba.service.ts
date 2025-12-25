@@ -19,33 +19,49 @@ export class WabaService {
     private prisma: PrismaService,
     private configService: ConfigService,
   ) {
-    this.metaApiVersion = configService.get<string>('META_API_VERSION') || 'v21.0';
+    this.metaApiVersion =
+      configService.get<string>('META_API_VERSION') || 'v21.0';
     this.metaAppId = configService.get<string>('META_APP_ID') || '';
     this.metaAppSecret = configService.get<string>('META_APP_SECRET') || '';
-    this.frontendCallbackUrl = configService.get<string>('FRONTEND_CALLBACK_URL') || '';
-    
+    this.frontendCallbackUrl =
+      configService.get<string>('FRONTEND_CALLBACK_URL') || '';
+
     if (!this.metaAppId || !this.metaAppSecret) {
       this.logger.warn('META_APP_ID or META_APP_SECRET not configured');
     }
   }
 
-  async getEmbeddedSignupUrl(shopId: string, connectionType: 'new' | 'existing' = 'new', state?: string): Promise<string> {
-    // Use frontend callback URL for redirect - Meta will redirect user there
-    const redirectUri = this.configService.get<string>('FRONTEND_CALLBACK_URL') || 
-      this.configService.get<string>('REDIRECT_URI') ||
-      `${this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000'}/onboarding/callback`;
-    
-    // Remove business_management - only use direct access method
-    const scopes = 'whatsapp_business_messaging,whatsapp_business_management';
-    
-    const url = `https://www.facebook.com/v${this.metaApiVersion}/dialog/oauth?` +
-      `client_id=${this.metaAppId}&` +
-      `redirect_uri=${encodeURIComponent(redirectUri)}&` +
-      `scope=${encodeURIComponent(scopes)}&` +
-      `state=${encodeURIComponent(state || `${shopId}:${connectionType}`)}&` +
-      `response_type=code`;
+  async getEmbeddedSignupUrl(
+    shopId: string,
+    connectionType: 'new' | 'existing' = 'new',
+    state?: string,
+  ): Promise<string> {
+    // Hardcoded frontend callback URL for redirect (development)
+    const redirectUri = 'http://localhost:3001/onboarding/callback';
 
-    this.logger.debug(`Generated OAuth URL with redirect_uri: ${redirectUri}, connectionType: ${connectionType}`);
+    // Include business_management so the Embedded Signup flow can create/select a WABA
+    const scopes = [
+      'whatsapp_business_messaging',
+      'whatsapp_business_management',
+      'business_management',
+    ].join(',');
+
+    // Request re-consent and explicit prompt so Meta shows the Embedded Signup UI when needed
+    const params = new URLSearchParams();
+    params.append('client_id', this.metaAppId);
+    params.append('redirect_uri', redirectUri);
+    params.append('scope', scopes);
+    params.append('state', state || `${shopId}:${connectionType}`);
+    params.append('response_type', 'code');
+    params.append('auth_type', 'rerequest');
+    params.append('prompt', 'consent');
+    params.append('display', 'page');
+
+    const url = `https://www.facebook.com/v${this.metaApiVersion}/dialog/oauth?${params.toString()}`;
+
+    this.logger.debug(
+      `Generated OAuth URL with redirect_uri: ${redirectUri}, connectionType: ${connectionType}`,
+    );
     return url;
   }
 
@@ -58,15 +74,15 @@ export class WabaService {
     retryDelay: number = 1000,
   ): Promise<T> {
     let lastError: any;
-    
+
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         return await requestFn();
       } catch (error: any) {
         lastError = error;
-        
+
         // Check if it's a retryable error
-        const isRetryable = 
+        const isRetryable =
           error.code === 'ETIMEDOUT' ||
           error.code === 'ECONNRESET' ||
           error.code === 'ENOTFOUND' ||
@@ -74,74 +90,136 @@ export class WabaService {
           (error.response?.status >= 500 && error.response?.status < 600) ||
           error.message?.includes('timeout') ||
           error.message?.includes('ETIMEDOUT');
-        
+
         if (!isRetryable || attempt === maxRetries) {
           throw error;
         }
-        
+
         this.logger.warn(
           `Request failed (attempt ${attempt}/${maxRetries}), retrying in ${retryDelay}ms...`,
-          { error: error.message, code: error.code }
+          { error: error.message, code: error.code },
         );
-        
-        await new Promise(resolve => setTimeout(resolve, retryDelay * attempt));
+
+        await new Promise((resolve) =>
+          setTimeout(resolve, retryDelay * attempt),
+        );
       }
     }
-    
+
     throw lastError;
   }
 
   async handleCallback(code: string, state: string) {
     this.logger.log(`Processing WABA callback for shop ${state}`);
-    
+
+    // Parse state param (expected format: "<shopId>:<connectionType>")
+    const parts = (state || '').split(':');
+    const shopId = parts[0] || state || null;
+    const connectionType = (parts[1] as 'new' | 'existing') || 'new';
+
+    // Validate shop exists (shopId is required to link the WABA to an existing Shop)
+    if (!shopId) {
+      this.logger.warn('Missing shopId in state parameter');
+      throw new BadRequestException(
+        'Missing shop identifier in OAuth state parameter. Please start the connection from the onboarding page.',
+      );
+    }
+
+    const shop = await this.prisma.shop.findUnique({ where: { id: shopId } });
+    if (!shop) {
+      this.logger.warn(`Shop not found: ${shopId}`);
+      throw new BadRequestException(
+        'Invalid shop identifier. Please select a valid shop and try again.',
+      );
+    }
+
     // Check if code was already used
     if (this.usedCodes.has(code)) {
       this.logger.warn(`Authorization code ${code} was already used`);
       throw new BadRequestException(
-        'This authorization code has already been used. Please initiate a new connection from the onboarding page.'
+        'This authorization code has already been used. Please initiate a new connection from the onboarding page.',
       );
     }
-    
+
     try {
       // Exchange code for access token
-      const redirectUri = this.configService.get<string>('FRONTEND_CALLBACK_URL') || 
-        this.configService.get<string>('REDIRECT_URI') ||
-        `${this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000'}/onboarding/callback`;
-      
-      this.logger.debug(`Exchanging authorization code for access token (redirect_uri: ${redirectUri})`);
-      
+      // Use hardcoded redirect URI in development
+      const redirectUri = 'http://localhost:3001/onboarding/callback';
+
+      this.logger.debug(
+        `Exchanging authorization code for access token (redirect_uri: ${redirectUri})`,
+      );
+
       const axiosConfig = {
         timeout: 60000, // 60 second timeout
       };
-      
+
       const tokenResponse = await this.axiosWithRetry(
-        () => axios.get(
-          `https://graph.facebook.com/v${this.metaApiVersion}/oauth/access_token`,
-          {
-            ...axiosConfig,
-            params: {
-              client_id: this.metaAppId,
-              client_secret: this.metaAppSecret,
-              redirect_uri: redirectUri,
-              code,
+        () =>
+          axios.get(
+            `https://graph.facebook.com/v${this.metaApiVersion}/oauth/access_token`,
+            {
+              ...axiosConfig,
+              params: {
+                client_id: this.metaAppId,
+                client_secret: this.metaAppSecret,
+                redirect_uri: redirectUri,
+                code,
+              },
             },
-          },
-        ),
+          ),
         3, // max retries
         2000, // initial retry delay (2 seconds)
       );
 
       // Mark code as used immediately after successful exchange
       this.usedCodes.add(code);
-      
-      const accessToken = tokenResponse.data.access_token;
+
+      // Obtain access token (short-lived)
+      let accessToken = tokenResponse.data.access_token;
+      let tokenExpiresAt: Date | null = null;
       this.logger.debug('Successfully obtained access token');
+
+      // Try to exchange the short-lived token for a long-lived token (recommended)
+      try {
+        const exchangeResp = await this.axiosWithRetry(() =>
+          axios.get(
+            `https://graph.facebook.com/v${this.metaApiVersion}/oauth/access_token`,
+            {
+              timeout: 60000,
+              params: {
+                grant_type: 'fb_exchange_token',
+                client_id: this.metaAppId,
+                client_secret: this.metaAppSecret,
+                fb_exchange_token: accessToken,
+              },
+            },
+          ),
+        );
+
+        if (exchangeResp.data && exchangeResp.data.access_token) {
+          accessToken = exchangeResp.data.access_token;
+          if (exchangeResp.data.expires_in) {
+            tokenExpiresAt = new Date(
+              Date.now() + exchangeResp.data.expires_in * 1000,
+            );
+          }
+          this.logger.debug(
+            `Exchanged token for long-lived token (expires_in=${exchangeResp.data.expires_in})`,
+          );
+        }
+      } catch (exchangeError: any) {
+        this.logger.warn(
+          'Failed to exchange token for long-lived token:',
+          exchangeError.message || exchangeError,
+        );
+      }
 
       // Get token debug info to extract WABA IDs from granular scopes
       let tokenDebugInfo: any = null;
       let wabaIdsFromToken: string[] = [];
       let businessIds: string[] = [];
-      
+
       try {
         const debugResponse = await axios.get(
           `https://graph.facebook.com/v${this.metaApiVersion}/debug_token`,
@@ -153,18 +231,28 @@ export class WabaService {
           },
         );
         tokenDebugInfo = debugResponse.data.data;
-        this.logger.debug('Token debug info:', JSON.stringify(tokenDebugInfo, null, 2));
-        
+        this.logger.debug(
+          'Token debug info:',
+          JSON.stringify(tokenDebugInfo, null, 2),
+        );
+
         // Extract WABA IDs from granular_scopes
         if (tokenDebugInfo?.granular_scopes) {
           for (const scope of tokenDebugInfo.granular_scopes) {
-            if (scope.scope === 'whatsapp_business_management' && scope.target_ids) {
+            if (
+              scope.scope === 'whatsapp_business_management' &&
+              scope.target_ids
+            ) {
               wabaIdsFromToken = scope.target_ids;
-              this.logger.debug(`Found WABA IDs from token: ${wabaIdsFromToken.join(', ')}`);
+              this.logger.debug(
+                `Found WABA IDs from token: ${wabaIdsFromToken.join(', ')}`,
+              );
             }
             if (scope.scope === 'business_management' && scope.target_ids) {
               businessIds = scope.target_ids;
-              this.logger.debug(`Found Business IDs from token: ${businessIds.join(', ')}`);
+              this.logger.debug(
+                `Found Business IDs from token: ${businessIds.join(', ')}`,
+              );
             }
           }
         }
@@ -174,14 +262,16 @@ export class WabaService {
 
       // Get WABA accounts - try multiple methods
       let wabaId: string | null = null;
-      
+
       // Method 1: Try to use WABA IDs directly from token granular scopes
       if (wabaIdsFromToken.length > 0) {
-        this.logger.debug(`Attempting to use WABA IDs from token granular scopes: ${wabaIdsFromToken[0]}`);
+        this.logger.debug(
+          `Attempting to use WABA IDs from token granular scopes: ${wabaIdsFromToken[0]}`,
+        );
         try {
           // Try to get WABA info directly using the ID from granular scopes
-          const wabaInfoResponse = await this.axiosWithRetry(
-            () => axios.get(
+          const wabaInfoResponse = await this.axiosWithRetry(() =>
+            axios.get(
               `https://graph.facebook.com/v${this.metaApiVersion}/${wabaIdsFromToken[0]}`,
               {
                 timeout: 60000,
@@ -192,22 +282,28 @@ export class WabaService {
               },
             ),
           );
-          
+
           if (wabaInfoResponse.data && wabaInfoResponse.data.id) {
             wabaId = wabaInfoResponse.data.id;
-            this.logger.debug(`Found WABA using ID from token granular scopes: ${wabaId}`);
+            this.logger.debug(
+              `Found WABA using ID from token granular scopes: ${wabaId}`,
+            );
           }
         } catch (wabaIdError: any) {
-          this.logger.warn(`Failed to access WABA using ID from token: ${wabaIdError.message}`);
+          this.logger.warn(
+            `Failed to access WABA using ID from token: ${wabaIdError.message}`,
+          );
         }
       }
-      
+
       // Method 2: Try accessing through Business Manager if we have business_management permission
       if (!wabaId && businessIds.length > 0) {
-        this.logger.debug(`Attempting to access WABAs through Business Manager: ${businessIds[0]}`);
+        this.logger.debug(
+          `Attempting to access WABAs through Business Manager: ${businessIds[0]}`,
+        );
         try {
-          const businessWabaResponse = await this.axiosWithRetry(
-            () => axios.get(
+          const businessWabaResponse = await this.axiosWithRetry(() =>
+            axios.get(
               `https://graph.facebook.com/v${this.metaApiVersion}/${businessIds[0]}/owned_whatsapp_business_accounts`,
               {
                 timeout: 60000,
@@ -218,21 +314,26 @@ export class WabaService {
               },
             ),
           );
-          
-          if (businessWabaResponse.data.data && businessWabaResponse.data.data.length > 0) {
+
+          if (
+            businessWabaResponse.data.data &&
+            businessWabaResponse.data.data.length > 0
+          ) {
             wabaId = businessWabaResponse.data.data[0].id;
             this.logger.debug(`Found WABA through Business Manager: ${wabaId}`);
           }
         } catch (businessError: any) {
-          this.logger.warn(`Failed to access WABA through Business Manager: ${businessError.message}`);
+          this.logger.warn(
+            `Failed to access WABA through Business Manager: ${businessError.message}`,
+          );
         }
       }
-      
+
       // Method 3: Try direct access via /me/owned_whatsapp_business_accounts (original method)
       if (!wabaId) {
         try {
-          const directWabaResponse = await this.axiosWithRetry(
-            () => axios.get(
+          const directWabaResponse = await this.axiosWithRetry(() =>
+            axios.get(
               `https://graph.facebook.com/v${this.metaApiVersion}/me/owned_whatsapp_business_accounts`,
               {
                 timeout: 60000,
@@ -244,14 +345,18 @@ export class WabaService {
             ),
           );
 
-          if (directWabaResponse.data.data && directWabaResponse.data.data.length > 0) {
+          if (
+            directWabaResponse.data.data &&
+            directWabaResponse.data.data.length > 0
+          ) {
             wabaId = directWabaResponse.data.data[0].id;
             this.logger.debug(`Found WABA directly: ${wabaId}`);
           }
         } catch (directError: any) {
-          const errorMsg = directError.response?.data?.error?.message || directError.message;
+          const errorMsg =
+            directError.response?.data?.error?.message || directError.message;
           const errorCode = directError.response?.data?.error?.code;
-          
+
           this.logger.error('Direct WABA access failed:', {
             error: errorMsg,
             code: errorCode,
@@ -261,55 +366,69 @@ export class WabaService {
           // Handle specific error codes
           if (errorCode === 100) {
             // Extract connection type from state if available
-            const connectionType = state?.includes(':') ? state.split(':')[1] : 'new';
-            
+            const connectionType = state?.includes(':')
+              ? state.split(':')[1]
+              : 'new';
+            const shopIdFromState = state?.includes(':')
+              ? state.split(':')[0]
+              : state;
+
             if (connectionType === 'existing') {
               throw new BadRequestException(
                 'Não foi possível acessar sua WABA existente.\n\n' +
-                'SOLUÇÃO: Certifique-se de que sua WABA está diretamente acessível à sua conta pessoal do Facebook:\n\n' +
-                '1. Se sua WABA está no Business Manager:\n' +
-                '   - Acesse https://business.facebook.com/\n' +
-                '   - Vá em Configurações da Empresa > Contas > Contas do WhatsApp\n' +
-                '   - Certifique-se de que sua conta pessoal do Facebook tem acesso Admin à WABA\n' +
-                '   - Ou remova a WABA do Business Manager e conecte-a diretamente à sua conta pessoal\n\n' +
-                '2. Se você não tem uma WABA diretamente acessível:\n' +
-                '   - Crie uma nova WABA em https://business.facebook.com/\n' +
-                '   - Ou use a opção "Criar nova WABA" na tela de conexão\n\n' +
-                'Depois, tente conectar novamente.'
+                  'SOLUÇÃO: Certifique-se de que sua WABA está diretamente acessível à sua conta pessoal do Facebook:\n\n' +
+                  '1. Se sua WABA está no Business Manager:\n' +
+                  '   - Acesse https://business.facebook.com/\n' +
+                  '   - Vá em Configurações da Empresa > Contas > Contas do WhatsApp\n' +
+                  '   - Certifique-se de que sua conta pessoal do Facebook tem acesso Admin à WABA\n' +
+                  '   - Ou remova a WABA do Business Manager e conecte-a diretamente à sua conta pessoal\n\n' +
+                  '2. Se você não tem uma WABA diretamente acessível:\n' +
+                  '   - Crie uma nova WABA em https://business.facebook.com/\n' +
+                  '   - Ou use a opção "Criar nova WABA" na tela de conexão\n\n' +
+                  'Depois, tente conectar novamente.',
               );
             } else {
-              throw new BadRequestException(
-                'Sua conta do Facebook não tem acesso direto a uma Conta WhatsApp Business.\n\n' +
-                'IMPORTANTE: Ao conectar via Cadastro Incorporado, você DEVE:\n' +
-                '1. Completar TODO o fluxo de Cadastro Incorporado (não apenas autorizar permissões)\n' +
-                '2. Criar ou selecionar uma Conta WhatsApp Business durante o fluxo\n' +
-                '3. Aceitar todos os termos e condições\n' +
-                '4. Completar a verificação do número de telefone se solicitado\n\n' +
-                'Se você já tem uma WABA no Business Manager:\n' +
-                '1. Acesse https://business.facebook.com/\n' +
-                '2. Vá em Configurações da Empresa > Contas > Contas do WhatsApp\n' +
-                '3. Certifique-se de que sua conta pessoal do Facebook tem acesso Admin à WABA\n' +
-                '4. Ou crie uma nova WABA diretamente sob sua conta pessoal\n\n' +
-                'Depois, tente conectar novamente.'
+              // For 'new' connections, instead of throwing an error, guide the frontend to
+              // continue the Embedded Signup flow. Return an object indicating the frontend
+              // should re-open the signup URL to let the user complete creation.
+              const signupUrl = await this.getEmbeddedSignupUrl(
+                shopIdFromState || state,
+                'new',
               );
+
+              this.logger.log(
+                'User needs to complete Embedded Signup flow; returning actionable response',
+              );
+
+              return {
+                needsEmbeddedSignup: true,
+                message:
+                  'Sua conta do Facebook não tem acesso direto a uma Conta WhatsApp Business. ' +
+                  'Por favor, complete o processo de Cadastro Incorporado do Meta para criar uma nova WABA.',
+                signupUrl,
+              };
             }
           }
 
-          if (errorCode === 200 || errorMsg?.includes('permission') || errorMsg?.includes('business_management')) {
+          if (
+            errorCode === 200 ||
+            errorMsg?.includes('permission') ||
+            errorMsg?.includes('business_management')
+          ) {
             throw new BadRequestException(
               'Unable to access WhatsApp Business Account. ' +
-              'Please ensure:\n' +
-              '1. Your WhatsApp Business Account is directly accessible to your Facebook account\n' +
-              '2. You have granted whatsapp_business_management permission during OAuth\n' +
-              '3. If your WABA is in Business Manager, ensure you have direct access or ask your admin to grant you access\n' +
-              '4. Try disconnecting and reconnecting your WABA account'
+                'Please ensure:\n' +
+                '1. Your WhatsApp Business Account is directly accessible to your Facebook account\n' +
+                '2. You have granted whatsapp_business_management permission during OAuth\n' +
+                '3. If your WABA is in Business Manager, ensure you have direct access or ask your admin to grant you access\n' +
+                '4. Try disconnecting and reconnecting your WABA account',
             );
           }
 
           throw new BadRequestException(
             `Failed to access WhatsApp Business Account: ${errorMsg || 'Unknown error'}. ` +
-            'Please ensure your WABA is directly accessible to your Facebook account. ' +
-            'If you don\'t have a WABA yet, you can create one during the Embedded Signup flow.'
+              'Please ensure your WABA is directly accessible to your Facebook account. ' +
+              "If you don't have a WABA yet, you can create one during the Embedded Signup flow.",
           );
         }
       }
@@ -317,7 +436,7 @@ export class WabaService {
       if (!wabaId) {
         throw new BadRequestException(
           'No WhatsApp Business Account found. ' +
-          'Please ensure you have a WhatsApp Business Account that is directly accessible to your Facebook account.'
+            'Please ensure you have a WhatsApp Business Account that is directly accessible to your Facebook account.',
         );
       }
 
@@ -327,8 +446,8 @@ export class WabaService {
       let hasPhoneNumbers = false;
 
       try {
-        const phoneResponse = await this.axiosWithRetry(
-          () => axios.get(
+        const phoneResponse = await this.axiosWithRetry(() =>
+          axios.get(
             `https://graph.facebook.com/v${this.metaApiVersion}/${wabaId}/phone_numbers`,
             {
               timeout: 60000,
@@ -339,14 +458,24 @@ export class WabaService {
 
         if (phoneResponse.data.data && phoneResponse.data.data.length > 0) {
           phoneId = phoneResponse.data.data[0].id;
-          displayNumber = phoneResponse.data.data[0].display_phone_number || phoneResponse.data.data[0].verified_name || phoneResponse.data.data[0].id;
+          displayNumber =
+            phoneResponse.data.data[0].display_phone_number ||
+            phoneResponse.data.data[0].verified_name ||
+            phoneResponse.data.data[0].id;
           hasPhoneNumbers = true;
-          this.logger.debug(`Found phone number: ${displayNumber} (ID: ${phoneId})`);
+          this.logger.debug(
+            `Found phone number: ${displayNumber} (ID: ${phoneId})`,
+          );
         } else {
-          this.logger.warn(`No phone numbers found in WABA ${wabaId}. WABA will be saved but user needs to add phone numbers.`);
+          this.logger.warn(
+            `No phone numbers found in WABA ${wabaId}. WABA will be saved but user needs to add phone numbers.`,
+          );
         }
       } catch (phoneError: any) {
-        this.logger.warn(`Failed to fetch phone numbers for WABA ${wabaId}:`, phoneError.message);
+        this.logger.warn(
+          `Failed to fetch phone numbers for WABA ${wabaId}:`,
+          phoneError.message,
+        );
         // Continue without phone numbers - user can add them later
       }
 
@@ -354,7 +483,9 @@ export class WabaService {
       if (!hasPhoneNumbers) {
         phoneId = `pending-${wabaId}`;
         displayNumber = 'No phone number - Add one in Meta Business Manager';
-        this.logger.log(`WABA ${wabaId} connected without phone numbers. User needs to add phone numbers via Meta Business Manager.`);
+        this.logger.log(
+          `WABA ${wabaId} connected without phone numbers. User needs to add phone numbers via Meta Business Manager.`,
+        );
       }
 
       // Encrypt and store token
@@ -370,31 +501,37 @@ export class WabaService {
         wabaAccount = await this.prisma.wabaAccount.update({
           where: { wabaId },
           data: {
-            shopId: state,
+            shopId: shopId,
             phoneId,
             displayNumber,
             encryptedToken,
-            tokenExpiresAt: null,
+            tokenExpiresAt: tokenExpiresAt || null,
           },
         });
       } else {
         wabaAccount = await this.prisma.wabaAccount.create({
           data: {
-            shopId: state,
+            shopId: shopId,
             wabaId,
             phoneId,
             displayNumber,
             encryptedToken,
+            tokenExpiresAt: tokenExpiresAt || null,
           },
         });
       }
 
       // Register webhook (async, don't wait)
       this.registerWebhook(wabaId, accessToken).catch((err) => {
-        this.logger.error(`Failed to register webhook for WABA ${wabaId}:`, err);
+        this.logger.error(
+          `Failed to register webhook for WABA ${wabaId}:`,
+          err,
+        );
       });
 
-      this.logger.log(`Successfully connected WABA ${wabaId} for shop ${state}${hasPhoneNumbers ? '' : ' (no phone numbers - user needs to add them)'}`);
+      this.logger.log(
+        `Successfully connected WABA ${wabaId} for shop ${shopId}${hasPhoneNumbers ? '' : ' (no phone numbers - user needs to add them)'}`,
+      );
 
       return {
         wabaId: wabaAccount.wabaId,
@@ -405,38 +542,42 @@ export class WabaService {
         needsPhoneNumber: !hasPhoneNumbers,
       };
     } catch (error) {
-      const errorMessage = error.response?.data?.error?.message || error.message;
-      const errorCode = error.response?.data?.error?.code || error.response?.status;
-      
-      this.logger.error(
-        `WABA callback failed for shop ${state}`,
-        {
-          error: errorMessage,
-          code: errorCode,
-          response: error.response?.data,
-          stack: error.stack,
-        },
-      );
+      const errorMessage =
+        error.response?.data?.error?.message || error.message;
+      const errorCode =
+        error.response?.data?.error?.code || error.response?.status;
+
+      this.logger.error(`WABA callback failed for shop ${state}`, {
+        error: errorMessage,
+        code: errorCode,
+        response: error.response?.data,
+        stack: error.stack,
+      });
 
       // Re-throw BadRequestException as-is (it already has a good message)
       if (error instanceof BadRequestException) {
         throw error;
       }
 
-      throw new BadRequestException(`Failed to process WABA connection: ${errorMessage}`);
+      throw new BadRequestException(
+        `Failed to process WABA connection: ${errorMessage}`,
+      );
     }
   }
 
   private async registerWebhook(wabaId: string, accessToken: string) {
     try {
-      const webhookUrl = this.configService.get<string>('WEBHOOK_PUBLIC_URL') || 
+      const webhookUrl =
+        this.configService.get<string>('WEBHOOK_PUBLIC_URL') ||
         `${process.env.APP_URL || 'http://localhost:3000'}/webhooks/meta`;
-      const verifyToken = this.configService.get<string>('META_VERIFY_TOKEN') || 'default-verify-token';
+      const verifyToken =
+        this.configService.get<string>('META_VERIFY_TOKEN') ||
+        'default-verify-token';
 
       // 1. Register app-level subscription (if using App Access Token)
       try {
-        await this.axiosWithRetry(
-          () => axios.post(
+        await this.axiosWithRetry(() =>
+          axios.post(
             `https://graph.facebook.com/v${this.metaApiVersion}/${this.metaAppId}/subscriptions`,
             {
               object: 'whatsapp_business_account',
@@ -452,7 +593,9 @@ export class WabaService {
             },
           ),
         );
-        this.logger.log('App-level webhook subscription registered successfully');
+        this.logger.log(
+          'App-level webhook subscription registered successfully',
+        );
       } catch (appError) {
         this.logger.warn(
           `App-level subscription failed (this is often expected), trying WABA-level: ${appError.message}`,
@@ -461,8 +604,8 @@ export class WabaService {
 
       // 2. Subscribe WABA to app (WABA-level subscription)
       try {
-        await this.axiosWithRetry(
-          () => axios.post(
+        await this.axiosWithRetry(() =>
+          axios.post(
             `https://graph.facebook.com/v${this.metaApiVersion}/${wabaId}/subscribed_apps`,
             {
               subscribed_fields: ['messages', 'message_status'],
@@ -476,22 +619,19 @@ export class WabaService {
             },
           ),
         );
-        
+
         this.logger.log(`Webhook registered successfully for WABA ${wabaId}`);
-        
+
         // Update webhook verified status
         await this.prisma.wabaAccount.update({
           where: { wabaId },
           data: { webhookVerified: true },
         });
       } catch (wabaError) {
-        this.logger.error(
-          `Failed to subscribe WABA ${wabaId} to webhooks`,
-          {
-            error: wabaError.response?.data || wabaError.message,
-            code: wabaError.response?.status,
-          },
-        );
+        this.logger.error(`Failed to subscribe WABA ${wabaId} to webhooks`, {
+          error: wabaError.response?.data || wabaError.message,
+          code: wabaError.response?.status,
+        });
         throw wabaError;
       }
     } catch (error) {
@@ -502,5 +642,18 @@ export class WabaService {
       throw error;
     }
   }
-}
 
+  // Public: register webhook for an existing WABA account by internal id
+  async registerWebhookForAccount(wabaAccountId: string) {
+    const waba = await this.prisma.wabaAccount.findUnique({
+      where: { id: wabaAccountId },
+    });
+    if (!waba) throw new BadRequestException('WABA account not found');
+
+    const accessToken = EncryptionUtil.decrypt(waba.encryptedToken);
+
+    await this.registerWebhook(waba.wabaId, accessToken);
+
+    return { success: true };
+  }
+}

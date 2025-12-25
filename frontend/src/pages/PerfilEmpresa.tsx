@@ -62,6 +62,36 @@ type HorariosType = {
   [key: string]: HorariosDia;
 };
 
+import * as React from "react";
+
+class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean, error?: any}> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: any, info: any) {
+    // Optionally log error to service
+    console.error('ErrorBoundary caught an error', error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-8">
+          <h2 className="text-xl font-bold">Algo deu errado</h2>
+          <p className="text-muted-foreground">Ocorreu um erro ao carregar o perfil da empresa. Tente recarregar a página.</p>
+        </div>
+      );
+    }
+    return this.props.children as any;
+  }
+}
+
 const PerfilEmpresa = () => {
   const { user } = useAuth();
   const { activeShop } = useActiveWaba();
@@ -127,6 +157,7 @@ const PerfilEmpresa = () => {
   };
 
   return (
+    <ErrorBoundary>
     <div className="p-8 space-y-8 animate-fade-in">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -308,8 +339,7 @@ const PerfilEmpresa = () => {
                   </div>
                 </div>
 
-                {horarios[dia.key].aberto && (
-                  <div className="grid grid-cols-2 gap-4">
+                <div className={`grid grid-cols-2 gap-4 ${horarios[dia.key].aberto ? '' : 'hidden'}`}>
                     <div className="space-y-2">
                       <Label className="text-xs text-muted-foreground">Horário 1</Label>
                       <div className="flex items-center gap-2">
@@ -347,7 +377,6 @@ const PerfilEmpresa = () => {
                       </div>
                     </div>
                   </div>
-                )}
               </div>
             ))}
           </div>
@@ -362,6 +391,7 @@ const PerfilEmpresa = () => {
         </Button>
       </div>
     </div>
+    </ErrorBoundary>
   );
 };
 

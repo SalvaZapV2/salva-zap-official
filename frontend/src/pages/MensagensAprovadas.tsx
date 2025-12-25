@@ -236,17 +236,16 @@ const MensagensAprovadas = () => {
                 onClick={handleGenerateTemplates}
                 disabled={isGenerating || !templatePrompt.trim() || !activeWaba}
               >
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Gerando templates...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    Gerar Templates
-                  </>
-                )}
+                <>
+                <span className={isGenerating ? "inline-flex items-center" : "hidden"}>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Gerando templates...
+                </span>
+                <span className={isGenerating ? "hidden" : "inline-flex items-center"}>
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  Gerar Templates
+                </span>
+              </>
               </Button>
               <p className="text-xs text-center text-muted-foreground">
                 Os templates serão automaticamente classificados e enviados para aprovação

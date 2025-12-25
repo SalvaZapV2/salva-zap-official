@@ -198,17 +198,14 @@ export const TemplateGenerator = ({
               className="w-full bg-gradient-primary"
               size="lg"
             >
-              {isGenerating ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {t.generating}
-                </>
-              ) : (
-                <>
-                  <Sparkles className="mr-2 h-4 w-4" />
-                  {t.generate}
-                </>
-              )}
+              <span className={isGenerating ? 'inline-flex items-center' : 'hidden'}>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                {t.generating}
+              </span>
+              <span className={isGenerating ? 'hidden' : 'inline-flex items-center'}>
+                <Sparkles className="mr-2 h-4 w-4" />
+                {t.generate}
+              </span>
             </Button>
           </div>
         )}
@@ -291,17 +288,14 @@ export const TemplateGenerator = ({
                       className="flex-1 bg-gradient-primary"
                       size="sm"
                     >
-                      {submitting === variation.id ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          {t.submitting}
-                        </>
-                      ) : (
-                        <>
-                          <Send className="mr-2 h-4 w-4" />
-                          {t.submitTemplate}
-                        </>
-                      )}
+                        <span className={submitting === variation.id ? 'inline-flex items-center' : 'hidden'}>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        {t.submitting}
+                      </span>
+                      <span className={submitting === variation.id ? 'hidden' : 'inline-flex items-center'}>
+                        <Send className="mr-2 h-4 w-4" />
+                        {t.submitTemplate}
+                      </span>
                     </Button>
                   </CardFooter>
                 </Card>

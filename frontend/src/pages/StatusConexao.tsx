@@ -22,7 +22,7 @@ import { useActiveWaba } from "@/hooks/use-active-waba";
 import { api } from "@/lib/api";
 
 const StatusConexao = () => {
-  const { activeWaba } = useActiveWaba();
+  const { activeWaba, refetchShops } = useActiveWaba();
 
   const {
     data: dashboard,
@@ -168,11 +168,22 @@ const StatusConexao = () => {
 
   const quality = getQualityColor(qualityData.status);
 
-  const handleReconnect = () => {
-    toast({
-      title: "Reconectando...",
-      description: "Verificando status com a Meta",
-    });
+  const handleReconnect = async () => {
+    if (!activeWaba) {
+      toast({ title: "Nenhuma WABA selecionada", description: "Selecione uma loja com WABA para reconectar", variant: "destructive" });
+      return;
+    }
+
+    toast({ title: "Reconectando...", description: "Tentando atualizar token com a Meta" });
+
+    try {
+      const res = await api.refreshWabaToken(activeWaba.id);
+      toast({ title: "Token atualizado", description: res.tokenExpiresAt ? `Expira em ${new Date(res.tokenExpiresAt).toLocaleString()}` : "Token atualizado" });
+      // Refresh shops/WABA data
+      await refetchShops();
+    } catch (err: any) {
+      toast({ title: "Falha ao reconectar", description: err?.message || "Tente novamente mais tarde", variant: "destructive" });
+    }
   };
 
   const handleDisconnect = () => {

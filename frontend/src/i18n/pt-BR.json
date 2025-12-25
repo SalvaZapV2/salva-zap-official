@@ -404,6 +404,22 @@
       "lastAuth": "Última Autenticação",
       "revalidate": "Revalidar Conexão",
       "switchCompany": "Trocar Empresa"
+    },
+    "onboardingCallback": {
+      "processingTitle": "Processando Conexão",
+      "processingDescription": "Aguarde enquanto conectamos sua Conta Oficial do WhatsApp",
+      "processing": "Processando...",
+      "noAuthCodeReceived": "Nenhum código de autorização recebido",
+      "authCodeAlreadyUsed": "Este código de autorização já foi utilizado. Por favor, tente conectar novamente.",
+      "authorizationCodeUsedShortToast": "Código de autorização já utilizado",
+      "oauthError": "Erro OAuth: {{error}}",
+      "needsEmbeddedSignup": "Sua conta do Facebook precisa concluir o Cadastro Incorporado do Meta para criar uma WABA. Clique no botão abaixo para abrir o fluxo no Meta.",
+      "openMetaButton": "Ir para o Meta",
+      "openMetaToast": "Abra o Meta para concluir a criação da WABA",
+      "wabaConnectedNoPhone": "Conta do WhatsApp conectada com sucesso!\n\n⚠️ IMPORTANTE: Nenhum número de telefone encontrado na sua conta WABA.\n\nPara adicionar um número:\n1. Acesse https://business.facebook.com/\n2. Vá para sua Conta Oficial do WhatsApp\n3. Adicione um número pelo painel do Meta\n4. Retorne aqui e atualize sua conexão\n\nVocê ainda pode usar a plataforma, mas os recursos de envio serão limitados até que um número seja adicionado.",
+      "wabaConnectedSuccess": "Conta do WhatsApp conectada com sucesso!",
+      "redirectingToOnboarding": "Redirecionando para o onboarding...",
+      "goBackToOnboarding": "Voltar para Onboarding"
     }
   }
 }

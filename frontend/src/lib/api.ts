@@ -146,6 +146,18 @@ class ApiClient {
     return this.request<{ url: string }>(`/waba/embedded/start?${params.toString()}`);
   }
 
+  async refreshWabaToken(wabaAccountId: string): Promise<{ id: string; wabaId: string; tokenExpiresAt?: string | null }> {
+    return this.request<{ id: string; wabaId: string; tokenExpiresAt?: string | null }>(`/waba/${wabaAccountId}/refresh`, {
+      method: 'POST',
+    });
+  }
+
+  async registerWebhook(wabaAccountId: string): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>(`/waba/${wabaAccountId}/webhook/register`, {
+      method: 'POST',
+    });
+  }
+
   // Messages
   async sendMessage(
     wabaAccountId: string,
