@@ -76,8 +76,10 @@ export class AuthController {
     @Res() res: Response,
     @Req() req: Request,
   ) {
-    // Hardcoded frontend callback URL (development)
-    const frontendCallbackUrl = 'http://localhost:3001/onboarding/callback';
+    // Use environment variable instead of hardcoded URL
+    const frontendCallbackUrl = 
+      this.configService.get<string>('FRONTEND_CALLBACK_URL') || 
+      'http://localhost:3001/onboarding/callback';
 
     // Check if this is an API call (from frontend) or a redirect (from Facebook)
     // GET requests from frontend will have Accept: application/json header
