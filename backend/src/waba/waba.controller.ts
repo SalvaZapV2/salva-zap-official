@@ -40,4 +40,11 @@ export class WabaController {
     // Return simple success object
     return { success: true };
   }
+
+  @Post(':id/refresh')
+  async refreshToken(@Param('id') id: string) {
+    // Refresh the access token for the WABA account
+    const result = await this.wabaService.refreshTokenForAccount(id);
+    return result;
+  }
 }

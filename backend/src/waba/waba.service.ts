@@ -567,12 +567,8 @@ export class WabaService {
    */
   private async registerWebhook(wabaId: string, accessToken: string) {
     try {
-      const webhookUrl =
-        this.configService.get<string>('WEBHOOK_PUBLIC_URL') ||
-        'https://salva-zap.ddns.net/webhooks/meta';
-      const verifyToken =
-        this.configService.get<string>('META_VERIFY_TOKEN') || 'default-verify-token';
-
+      // Subscribe to webhook fields for the WABA
+      // Note: callback_url and verify_token are configured in Facebook Developer Console, not via API
       const response = await axios.post(
         `https://graph.facebook.com/v${this.metaApiVersion}/${wabaId}/subscribed_apps`,
         {
@@ -586,21 +582,6 @@ export class WabaService {
         },
       );
 
-      // Also set the webhook URL and verify token via app settings
-      await axios.post(
-        `https://graph.facebook.com/v${this.metaApiVersion}/${wabaId}/subscribed_apps`,
-        {},
-        {
-          headers: { Authorization: `Bearer ${accessToken}` },
-          params: {
-            access_token: accessToken,
-            callback_url: webhookUrl,
-            verify_token: verifyToken,
-            fields: 'messages,message_template_status_update',
-          },
-        },
-      );
-
       // Update webhook verified status in database
       await this.prisma.wabaAccount.update({
         where: { wabaId },
@@ -609,11 +590,13 @@ export class WabaService {
 
       this.logger.log(`Webhook registered successfully for WABA ${wabaId}`);
     } catch (error: any) {
+      const errorMsg = error.response?.data?.error?.message || error.message;
       this.logger.error(
         `Failed to register webhook for WABA ${wabaId}:`,
         error.response?.data || error.message,
       );
-      throw error;
+      // Don't throw - webhook registration failure shouldn't break the connection flow
+      // The webhook can be registered later via the UI
     }
   }
 
@@ -635,5 +618,70 @@ export class WabaService {
 
     // Register the webhook
     await this.registerWebhook(wabaAccount.wabaId, accessToken);
+  }
+
+  /**
+   * Refresh access token for a WABA account
+   */
+  async refreshTokenForAccount(accountId: string) {
+    const wabaAccount = await this.prisma.wabaAccount.findUnique({
+      where: { id: accountId },
+    });
+
+    if (!wabaAccount) {
+      throw new BadRequestException(`WABA account not found: ${accountId}`);
+    }
+
+    // Decrypt the current token
+    const currentToken = EncryptionUtil.decrypt(wabaAccount.encryptedToken);
+
+    try {
+      // Exchange for long-lived token
+      const exchangeResp = await axios.get(
+        `https://graph.facebook.com/v${this.metaApiVersion}/oauth/access_token`,
+        {
+          timeout: 60000,
+          params: {
+            grant_type: 'fb_exchange_token',
+            client_id: this.metaAppId,
+            client_secret: this.metaAppSecret,
+            fb_exchange_token: currentToken,
+          },
+        },
+      );
+
+      if (exchangeResp.data && exchangeResp.data.access_token) {
+        const newToken = exchangeResp.data.access_token;
+        const encryptedToken = EncryptionUtil.encrypt(newToken);
+        
+        let tokenExpiresAt: Date | null = null;
+        if (exchangeResp.data.expires_in) {
+          tokenExpiresAt = new Date(
+            Date.now() + exchangeResp.data.expires_in * 1000,
+          );
+        }
+
+        // Update in database
+        const updated = await this.prisma.wabaAccount.update({
+          where: { id: accountId },
+          data: {
+            encryptedToken,
+            tokenExpiresAt,
+          },
+        });
+
+        return {
+          id: updated.id,
+          wabaId: updated.wabaId,
+          tokenExpiresAt: updated.tokenExpiresAt,
+        };
+      }
+
+      throw new BadRequestException('Failed to refresh token: No access token in response');
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.error?.message || error.message;
+      this.logger.error(`Failed to refresh token for account ${accountId}:`, errorMsg);
+      throw new BadRequestException(`Failed to refresh token: ${errorMsg}`);
+    }
   }
 }

@@ -77,7 +77,22 @@ export class TemplatesService {
       return template;
     } catch (error) {
       console.error('Template submission error:', error.response?.data || error.message);
-      throw new BadRequestException('Failed to submit template: ' + (error.response?.data?.error?.message || error.message));
+      
+      // Extract user-friendly error message from Meta
+      const metaError = error.response?.data?.error;
+      let errorMessage = 'Failed to submit template';
+      
+      if (metaError) {
+        // Prefer user-friendly Portuguese message if available
+        errorMessage = metaError.error_user_msg || 
+                       metaError.error_user_title || 
+                       metaError.message || 
+                       'Invalid parameter';
+      } else {
+        errorMessage = error.message || 'Unknown error';
+      }
+      
+      throw new BadRequestException(errorMessage);
     }
   }
 
