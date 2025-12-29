@@ -451,4 +451,189 @@ export class WabaService {
             `https://graph.facebook.com/v${this.metaApiVersion}/${wabaId}/phone_numbers`,
             {
               timeout: 60000,
-              headers: { Authorization: `Bearer ${accessToken}`
+              headers: { Authorization: `Bearer ${accessToken}` },
+            },
+          ),
+        );
+
+        if (phoneResponse.data.data && phoneResponse.data.data.length > 0) {
+          phoneId = phoneResponse.data.data[0].id;
+          displayNumber =
+            phoneResponse.data.data[0].display_phone_number ||
+            phoneResponse.data.data[0].verified_name ||
+            phoneResponse.data.data[0].id;
+          hasPhoneNumbers = true;
+          this.logger.debug(
+            `Found phone number: ${displayNumber} (ID: ${phoneId})`,
+          );
+        } else {
+          this.logger.warn(
+            `No phone numbers found in WABA ${wabaId}. WABA will be saved but user needs to add phone numbers.`,
+          );
+        }
+      } catch (phoneError: any) {
+        this.logger.warn(
+          `Failed to fetch phone numbers for WABA ${wabaId}:`,
+          phoneError.message,
+        );
+        // Continue without phone numbers - user can add them later
+      }
+
+      // If no phone numbers found, use placeholder values
+      if (!hasPhoneNumbers) {
+        phoneId = `pending-${wabaId}`;
+        displayNumber = 'No phone number - Add one in Meta Business Manager';
+        this.logger.log(
+          `WABA ${wabaId} connected without phone numbers. User needs to add phone numbers via Meta Business Manager.`,
+        );
+      }
+
+      // Encrypt and store token
+      const encryptedToken = EncryptionUtil.encrypt(accessToken);
+
+      // Check if WABA already exists
+      const existingWaba = await this.prisma.wabaAccount.findUnique({
+        where: { wabaId },
+      });
+
+      let wabaAccount;
+      if (existingWaba) {
+        wabaAccount = await this.prisma.wabaAccount.update({
+          where: { wabaId },
+          data: {
+            shopId: shopId,
+            phoneId,
+            displayNumber,
+            encryptedToken,
+            tokenExpiresAt: tokenExpiresAt || null,
+          },
+        });
+      } else {
+        wabaAccount = await this.prisma.wabaAccount.create({
+          data: {
+            shopId: shopId,
+            wabaId,
+            phoneId,
+            displayNumber,
+            encryptedToken,
+            tokenExpiresAt: tokenExpiresAt || null,
+          },
+        });
+      }
+
+      // Register webhook (async, don't wait)
+      this.registerWebhook(wabaId, accessToken).catch((err) => {
+        this.logger.error(
+          `Failed to register webhook for WABA ${wabaId}:`,
+          err,
+        );
+      });
+
+      this.logger.log(
+        `Successfully connected WABA ${wabaId} for shop ${shopId}${hasPhoneNumbers ? '' : ' (no phone numbers - user needs to add them)'}`,
+      );
+
+      return {
+        wabaId: wabaAccount.wabaId,
+        phoneId: wabaAccount.phoneId,
+        displayNumber: wabaAccount.displayNumber,
+        webhookVerified: wabaAccount.webhookVerified,
+        hasPhoneNumbers,
+        needsPhoneNumber: !hasPhoneNumbers,
+      };
+    } catch (error: any) {
+      // Mark code as unused if we failed before using it
+      this.usedCodes.delete(code);
+
+      const errorMsg =
+        error.response?.data?.error?.message || error.message || 'Unknown error';
+      const errorCode = error.response?.data?.error?.code;
+
+      this.logger.error(`WABA callback failed for shop ${state}`, {
+        error: errorMsg,
+        code: errorCode,
+        response: error.response?.data,
+        stack: error.stack,
+      });
+
+      throw new BadRequestException(
+        `Failed to process WABA connection: ${errorMsg}`,
+      );
+    }
+  }
+
+  /**
+   * Register webhook for a WABA account
+   */
+  private async registerWebhook(wabaId: string, accessToken: string) {
+    try {
+      const webhookUrl =
+        this.configService.get<string>('WEBHOOK_PUBLIC_URL') ||
+        'https://salva-zap.ddns.net/webhooks/meta';
+      const verifyToken =
+        this.configService.get<string>('META_VERIFY_TOKEN') || 'default-verify-token';
+
+      const response = await axios.post(
+        `https://graph.facebook.com/v${this.metaApiVersion}/${wabaId}/subscribed_apps`,
+        {
+          subscribed_fields: ['messages', 'message_template_status_update'],
+        },
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          params: {
+            access_token: accessToken,
+          },
+        },
+      );
+
+      // Also set the webhook URL and verify token via app settings
+      await axios.post(
+        `https://graph.facebook.com/v${this.metaApiVersion}/${wabaId}/subscribed_apps`,
+        {},
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          params: {
+            access_token: accessToken,
+            callback_url: webhookUrl,
+            verify_token: verifyToken,
+            fields: 'messages,message_template_status_update',
+          },
+        },
+      );
+
+      // Update webhook verified status in database
+      await this.prisma.wabaAccount.update({
+        where: { wabaId },
+        data: { webhookVerified: true },
+      });
+
+      this.logger.log(`Webhook registered successfully for WABA ${wabaId}`);
+    } catch (error: any) {
+      this.logger.error(
+        `Failed to register webhook for WABA ${wabaId}:`,
+        error.response?.data || error.message,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Register webhook for a WABA account by account ID
+   */
+  async registerWebhookForAccount(accountId: string) {
+    // Find the WABA account by ID
+    const wabaAccount = await this.prisma.wabaAccount.findUnique({
+      where: { id: accountId },
+    });
+
+    if (!wabaAccount) {
+      throw new BadRequestException(`WABA account not found: ${accountId}`);
+    }
+
+    // Decrypt the access token
+    const accessToken = EncryptionUtil.decrypt(wabaAccount.encryptedToken);
+
+    // Register the webhook
+    await this.registerWebhook(wabaAccount.wabaId, accessToken);
+  }
+}
