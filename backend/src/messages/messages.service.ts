@@ -14,7 +14,9 @@ export class MessagesService {
     private prisma: PrismaService,
     private configService: ConfigService,
   ) {
-    this.metaApiVersion = configService.get<string>('META_API_VERSION') || 'v21.0';
+    // Normalize API version - remove 'v' prefix if present
+    const apiVersion = configService.get<string>('META_API_VERSION') || '21.0';
+    this.metaApiVersion = apiVersion.startsWith('v') ? apiVersion.substring(1) : apiVersion;
   }
 
   async sendMessage(wabaAccountId: string, to: string, body: string, clientMessageId?: string) {

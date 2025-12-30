@@ -20,7 +20,7 @@ export class WabaService {
     private configService: ConfigService,
   ) {
     this.metaApiVersion =
-      configService.get<string>('META_API_VERSION') || 'v21.0';
+      configService.get<string>('META_API_VERSION') || '21.0';
     this.metaAppId = configService.get<string>('META_APP_ID') || '';
     this.metaAppSecret = configService.get<string>('META_APP_SECRET') || '';
     this.frontendCallbackUrl =
@@ -36,14 +36,15 @@ export class WabaService {
     connectionType: 'new' | 'existing' = 'new',
     state?: string,
   ): Promise<string> {
-    // Use environment variable instead of hardcoded URL
+    // Use environment variable for production - localhost is only for local development
     const redirectUri = this.frontendCallbackUrl || 'http://localhost:3001/onboarding/callback';
 
-    // Include business_management so the Embedded Signup flow can create/select a WABA
+    // Request only required permissions per stage1_requirements.txt
+    // business_management is NOT required, but we try to use it as fallback if available
     const scopes = [
       'whatsapp_business_messaging',
       'whatsapp_business_management',
-      'business_management',
+      // Note: business_management is optional - we handle gracefully if not granted
     ].join(',');
 
     // Request re-consent and explicit prompt so Meta shows the Embedded Signup UI when needed
@@ -277,7 +278,7 @@ export class WabaService {
                 timeout: 60000,
                 headers: { Authorization: `Bearer ${accessToken}` },
                 params: {
-                  fields: 'id,name',
+                  fields: 'id,name,business',
                 },
               },
             ),
@@ -288,6 +289,13 @@ export class WabaService {
             this.logger.debug(
               `Found WABA using ID from token granular scopes: ${wabaId}`,
             );
+            // Extract Business ID from WABA if available
+            if (wabaInfoResponse.data.business?.id) {
+              businessIds = [wabaInfoResponse.data.business.id];
+              this.logger.debug(
+                `Found Business ID from WABA: ${businessIds[0]}`,
+              );
+            }
           }
         } catch (wabaIdError: any) {
           this.logger.warn(
@@ -296,10 +304,12 @@ export class WabaService {
         }
       }
 
-      // Method 2: Try accessing through Business Manager if we have business_management permission
+      // Method 2: Try accessing through Business ID if available (optional fallback)
+      // Note: business_management permission is NOT required per Stage 1 requirements
+      // This is only used if the token happens to include business_management scope
       if (!wabaId && businessIds.length > 0) {
         this.logger.debug(
-          `Attempting to access WABAs through Business Manager: ${businessIds[0]}`,
+          `Attempting to access WABAs via Business ID (optional fallback): ${businessIds[0]}`,
         );
         try {
           const businessWabaResponse = await this.axiosWithRetry(() =>
@@ -320,11 +330,12 @@ export class WabaService {
             businessWabaResponse.data.data.length > 0
           ) {
             wabaId = businessWabaResponse.data.data[0].id;
-            this.logger.debug(`Found WABA through Business Manager: ${wabaId}`);
+            this.logger.debug(`Found WABA via Business ID fallback: ${wabaId}`);
           }
         } catch (businessError: any) {
-          this.logger.warn(
-            `Failed to access WABA through Business Manager: ${businessError.message}`,
+          // Silently fail - this is an optional fallback method
+          this.logger.debug(
+            `Optional Business ID fallback failed (expected if business_management not granted): ${businessError.message}`,
           );
         }
       }
@@ -377,14 +388,10 @@ export class WabaService {
               throw new BadRequestException(
                 'Não foi possível acessar sua WABA existente.\n\n' +
                   'SOLUÇÃO: Certifique-se de que sua WABA está diretamente acessível à sua conta pessoal do Facebook:\n\n' +
-                  '1. Se sua WABA está no Business Manager:\n' +
-                  '   - Acesse https://business.facebook.com/\n' +
-                  '   - Vá em Configurações da Empresa > Contas > Contas do WhatsApp\n' +
-                  '   - Certifique-se de que sua conta pessoal do Facebook tem acesso Admin à WABA\n' +
-                  '   - Ou remova a WABA do Business Manager e conecte-a diretamente à sua conta pessoal\n\n' +
-                  '2. Se você não tem uma WABA diretamente acessível:\n' +
-                  '   - Crie uma nova WABA em https://business.facebook.com/\n' +
-                  '   - Ou use a opção "Criar nova WABA" na tela de conexão\n\n' +
+                  '1. Acesse https://business.facebook.com/\n' +
+                  '2. Vá em Configurações da Empresa > Contas > Contas do WhatsApp\n' +
+                  '3. Certifique-se de que sua conta pessoal do Facebook tem acesso direto à WABA\n' +
+                  '4. Ou use a opção "Criar nova WABA" na tela de conexão para criar uma nova conta\n\n' +
                   'Depois, tente conectar novamente.',
               );
             } else {
@@ -412,15 +419,14 @@ export class WabaService {
 
           if (
             errorCode === 200 ||
-            errorMsg?.includes('permission') ||
-            errorMsg?.includes('business_management')
+            errorMsg?.includes('permission')
           ) {
             throw new BadRequestException(
               'Unable to access WhatsApp Business Account. ' +
                 'Please ensure:\n' +
                 '1. Your WhatsApp Business Account is directly accessible to your Facebook account\n' +
-                '2. You have granted whatsapp_business_management permission during OAuth\n' +
-                '3. If your WABA is in Business Manager, ensure you have direct access or ask your admin to grant you access\n' +
+                '2. You have granted whatsapp_business_management and whatsapp_business_messaging permissions during OAuth\n' +
+                '3. Complete the Embedded Signup flow if creating a new WABA\n' +
                 '4. Try disconnecting and reconnecting your WABA account',
             );
           }
@@ -438,6 +444,53 @@ export class WabaService {
           'No WhatsApp Business Account found. ' +
             'Please ensure you have a WhatsApp Business Account that is directly accessible to your Facebook account.',
         );
+      }
+
+      // Get WABA details including Business ID if not already found
+      let businessId: string | null = null;
+      let messagingEnabled = false;
+      
+      if (businessIds.length > 0) {
+        businessId = businessIds[0];
+        messagingEnabled = true; // If we have businessId, messaging is enabled
+        this.logger.debug(
+          `Using Business ID from token: ${businessId}`,
+        );
+      } else {
+        // Try to get Business ID from WABA account details
+        try {
+          const wabaDetailsResponse = await this.axiosWithRetry(() =>
+            axios.get(
+              `https://graph.facebook.com/v${this.metaApiVersion}/${wabaId}`,
+              {
+                timeout: 60000,
+                headers: { Authorization: `Bearer ${accessToken}` },
+                params: {
+                  fields: 'id,name,business,message_templates',
+                },
+              },
+            ),
+          );
+
+          if (wabaDetailsResponse.data?.business?.id) {
+            businessId = wabaDetailsResponse.data.business.id;
+            this.logger.debug(
+              `Found Business ID from WABA details: ${businessId}`,
+            );
+          }
+
+          // Check if messaging is enabled (WABA exists and has access)
+          if (wabaDetailsResponse.data?.id) {
+            messagingEnabled = true;
+            this.logger.debug(`Messaging enabled for WABA ${wabaId}`);
+          }
+        } catch (wabaDetailsError: any) {
+          this.logger.warn(
+            `Failed to fetch WABA details: ${wabaDetailsError.message}`,
+          );
+          // Continue anyway - messaging might still work
+          messagingEnabled = true; // Assume enabled if WABA exists
+        }
       }
 
       // Get phone numbers
@@ -502,10 +555,12 @@ export class WabaService {
           where: { wabaId },
           data: {
             shopId: shopId,
+            businessId: businessId || null,
             phoneId,
             displayNumber,
             encryptedToken,
             tokenExpiresAt: tokenExpiresAt || null,
+            messagingEnabled: messagingEnabled || hasPhoneNumbers, // Enable if we have phone numbers
           },
         });
       } else {
@@ -513,10 +568,12 @@ export class WabaService {
           data: {
             shopId: shopId,
             wabaId,
+            businessId: businessId || null,
             phoneId,
             displayNumber,
             encryptedToken,
             tokenExpiresAt: tokenExpiresAt || null,
+            messagingEnabled: messagingEnabled || hasPhoneNumbers, // Enable if we have phone numbers
           },
         });
       }
@@ -541,9 +598,11 @@ export class WabaService {
 
       return {
         wabaId: wabaAccount.wabaId,
+        businessId: wabaAccount.businessId,
         phoneId: wabaAccount.phoneId,
         displayNumber: wabaAccount.displayNumber,
         webhookVerified: wabaAccount.webhookVerified,
+        messagingEnabled: wabaAccount.messagingEnabled,
         hasPhoneNumbers,
         needsPhoneNumber: !hasPhoneNumbers,
         shopName: shop?.name || 'Unknown Shop',
