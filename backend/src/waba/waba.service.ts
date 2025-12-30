@@ -533,6 +533,12 @@ export class WabaService {
         `Successfully connected WABA ${wabaId} for shop ${shopId}${hasPhoneNumbers ? '' : ' (no phone numbers - user needs to add them)'}`,
       );
 
+      // Get shop name for user feedback
+      const shop = await this.prisma.shop.findUnique({
+        where: { id: shopId },
+        select: { name: true },
+      });
+
       return {
         wabaId: wabaAccount.wabaId,
         phoneId: wabaAccount.phoneId,
@@ -540,6 +546,8 @@ export class WabaService {
         webhookVerified: wabaAccount.webhookVerified,
         hasPhoneNumbers,
         needsPhoneNumber: !hasPhoneNumbers,
+        shopName: shop?.name || 'Unknown Shop',
+        shopId: shopId,
       };
     } catch (error: any) {
       // Mark code as unused if we failed before using it
@@ -683,5 +691,107 @@ export class WabaService {
       this.logger.error(`Failed to refresh token for account ${accountId}:`, errorMsg);
       throw new BadRequestException(`Failed to refresh token: ${errorMsg}`);
     }
+  }
+
+  /**
+   * Sync phone numbers from Meta for a WABA account
+   */
+  async syncPhoneNumbersForAccount(accountId: string) {
+    const wabaAccount = await this.prisma.wabaAccount.findUnique({
+      where: { id: accountId },
+    });
+
+    if (!wabaAccount) {
+      throw new BadRequestException(`WABA account not found: ${accountId}`);
+    }
+
+    // Decrypt the access token
+    const accessToken = EncryptionUtil.decrypt(wabaAccount.encryptedToken);
+
+    try {
+      // Fetch phone numbers from Meta
+      const phoneResponse = await this.axiosWithRetry(() =>
+        axios.get(
+          `https://graph.facebook.com/v${this.metaApiVersion}/${wabaAccount.wabaId}/phone_numbers`,
+          {
+            timeout: 60000,
+            headers: { Authorization: `Bearer ${accessToken}` },
+          },
+        ),
+      );
+
+      let phoneId: string | null = null;
+      let displayNumber: string | null = null;
+      let hasPhoneNumbers = false;
+
+      if (phoneResponse.data.data && phoneResponse.data.data.length > 0) {
+        phoneId = phoneResponse.data.data[0].id;
+        displayNumber =
+          phoneResponse.data.data[0].display_phone_number ||
+          phoneResponse.data.data[0].verified_name ||
+          phoneResponse.data.data[0].id;
+        hasPhoneNumbers = true;
+        this.logger.debug(
+          `Synced phone number: ${displayNumber} (ID: ${phoneId}) for WABA ${wabaAccount.wabaId}`,
+        );
+      } else {
+        // No phone numbers found
+        phoneId = `pending-${wabaAccount.wabaId}`;
+        displayNumber = 'No phone number - Add one in Meta Business Manager';
+        this.logger.warn(
+          `No phone numbers found when syncing for WABA ${wabaAccount.wabaId}`,
+        );
+      }
+
+      // Update the account with latest phone number info
+      const updated = await this.prisma.wabaAccount.update({
+        where: { id: accountId },
+        data: {
+          phoneId,
+          displayNumber,
+        },
+      });
+
+      return {
+        id: updated.id,
+        wabaId: updated.wabaId,
+        phoneId: updated.phoneId,
+        displayNumber: updated.displayNumber,
+        hasPhoneNumbers,
+      };
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.error?.message || error.message;
+      this.logger.error(
+        `Failed to sync phone numbers for account ${accountId}:`,
+        errorMsg,
+      );
+      throw new BadRequestException(
+        `Failed to sync phone numbers: ${errorMsg}`,
+      );
+    }
+  }
+
+  /**
+   * Disconnect (delete) a WABA account
+   */
+  async disconnectAccount(accountId: string) {
+    const wabaAccount = await this.prisma.wabaAccount.findUnique({
+      where: { id: accountId },
+    });
+
+    if (!wabaAccount) {
+      throw new BadRequestException(`WABA account not found: ${accountId}`);
+    }
+
+    // Delete the WABA account (cascade will delete related records)
+    await this.prisma.wabaAccount.delete({
+      where: { id: accountId },
+    });
+
+    this.logger.log(
+      `WABA account ${accountId} (WABA ID: ${wabaAccount.wabaId}) disconnected successfully`,
+    );
+
+    return { success: true };
   }
 }

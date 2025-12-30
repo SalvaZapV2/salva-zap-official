@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards, Post, Param } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards, Post, Param, Delete } from '@nestjs/common';
 import { WabaService } from './waba.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -46,5 +46,19 @@ export class WabaController {
     // Refresh the access token for the WABA account
     const result = await this.wabaService.refreshTokenForAccount(id);
     return result;
+  }
+
+  @Post(':id/sync-phone-numbers')
+  async syncPhoneNumbers(@Param('id') id: string) {
+    // Sync phone numbers from Meta for the WABA account
+    const result = await this.wabaService.syncPhoneNumbersForAccount(id);
+    return result;
+  }
+
+  @Delete(':id')
+  async disconnect(@Param('id') id: string) {
+    // Disconnect (delete) the WABA account
+    await this.wabaService.disconnectAccount(id);
+    return { success: true, message: 'WABA account disconnected successfully' };
   }
 }

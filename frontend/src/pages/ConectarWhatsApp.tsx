@@ -113,15 +113,15 @@ const ConectarWhatsApp = () => {
                       <p className="text-sm text-muted-foreground mt-1">
                         Você não tem uma WABA ainda e quer criar uma agora através do Cadastro Incorporado (Embedded Signup) da Meta.
                         A Meta criará automaticamente uma nova conta para você durante o processo.
-                      </p>
-                    </div>
-                  </div>
+              </p>
+            </div>
+                </div>
                 </Label>
               </div>
               <div className="flex items-start space-x-3 space-y-0 rounded-md border p-4 hover:bg-accent cursor-pointer">
                 <RadioGroupItem value="existing" id="existing" className="mt-1" />
                 <Label htmlFor="existing" className="flex-1 cursor-pointer">
-                  <div className="flex items-start gap-3">
+              <div className="flex items-start gap-3">
                     <LinkIcon className="h-5 w-5 text-[#0EA5E9] mt-0.5" />
                     <div className="flex-1">
                       <p className="font-semibold">Conectar WABA existente</p>
@@ -131,8 +131,8 @@ const ConectarWhatsApp = () => {
                           Importante: Sua WABA deve estar diretamente acessível à sua conta pessoal do Facebook.
                           Se estiver no Business Manager, certifique-se de ter acesso Admin.
                         </strong>
-                      </p>
-                    </div>
+                  </p>
+                </div>
                   </div>
                 </Label>
               </div>
@@ -181,26 +181,26 @@ const ConectarWhatsApp = () => {
                       <span>Você precisará autorizar as permissões necessárias</span>
                     </li>
                   </ul>
-                </div>
+              </div>
               )}
-              
-              <Button
-                className="w-full bg-[#25D366] hover:bg-[#25D366]/90 h-12 text-lg"
-                onClick={handleConnect}
-                disabled={isRedirecting || startEmbeddedSignup.isPending || !activeShop}
-              >
-                {isRedirecting || startEmbeddedSignup.isPending ? (
-                  <>
-                    <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full mr-2" />
-                    Conectando...
-                  </>
-                ) : (
-                  <>
-                    <ExternalLink className="h-5 w-5 mr-2" />
+
+            <Button
+              className="w-full bg-[#25D366] hover:bg-[#25D366]/90 h-12 text-lg"
+              onClick={handleConnect}
+              disabled={isRedirecting || startEmbeddedSignup.isPending || !activeShop}
+            >
+              {isRedirecting || startEmbeddedSignup.isPending ? (
+                <>
+                  <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full mr-2" />
+                  Conectando...
+                </>
+              ) : (
+                <>
+                  <ExternalLink className="h-5 w-5 mr-2" />
                     {connectionType === 'new' ? 'Criar e Conectar WABA' : 'Conectar WABA Existente'}
-                  </>
-                )}
-              </Button>
+                </>
+              )}
+            </Button>
             </div>
           </CardContent>
         </Card>

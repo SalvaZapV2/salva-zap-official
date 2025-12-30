@@ -164,16 +164,14 @@ const Onboarding = () => {
                     navigate('/conectar-whatsapp');
                     return;
                   }
+                  // Allow proceeding even without phone numbers
                   setCurrentStep(2);
                   return;
                 }
 
                 if (currentStep === 2) {
-                  if (!hasActive) {
-                    toast({ title: 'Conta não ativa', description: 'Verifique sua WABA e confirme o número', variant: 'destructive' });
-                    navigate('/status-conexao');
-                    return;
-                  }
+                  // Allow proceeding even if phone numbers are missing
+                  // User can add them later and sync
                   setCurrentStep(3);
                   return;
                 }

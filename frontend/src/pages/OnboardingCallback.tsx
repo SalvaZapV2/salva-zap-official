@@ -117,13 +117,20 @@ const OnboardingCallback = () => {
         }
 
         // Check if phone numbers are needed
+        const shopInfo = data.shopName ? `\n\nEmpresa: ${data.shopName}` : '';
+        const wabaInfo = data.wabaId ? `\nWABA ID: ${data.wabaId}` : '';
+        
         if (data.needsPhoneNumber || !data.hasPhoneNumbers) {
           setStatus('success');
-          setMessage(t?.wabaConnectedNoPhone || 'Conta do WhatsApp conectada com sucesso!\n\n⚠️ IMPORTANTE: Nenhum número de telefone encontrado na sua conta WABA.\n\nPara adicionar um número:\n1. Acesse https://business.facebook.com/\n2. Vá para sua Conta Oficial do WhatsApp\n3. Adicione um número pelo painel do Meta\n4. Retorne aqui e atualize sua conexão\n\nVocê ainda pode usar a plataforma, mas os recursos de envio serão limitados até que um número seja adicionado.');
+          const messageText = (t?.wabaConnectedNoPhone || 'Conta do WhatsApp conectada com sucesso!') + 
+            shopInfo + wabaInfo +
+            '\n\n⚠️ IMPORTANTE: Nenhum número de telefone encontrado na sua conta WABA.\n\nPara adicionar um número:\n1. Acesse https://business.facebook.com/\n2. Vá para sua Conta Oficial do WhatsApp\n3. Adicione um número pelo painel do Meta\n4. Retorne aqui e use o botão "Sincronizar Números" na página de status\n\nVocê ainda pode usar a plataforma, mas os recursos de envio serão limitados até que um número seja adicionado.';
+          setMessage(messageText);
           toast.success(t?.wabaConnectedNoPhone || 'Conta do WhatsApp conectada com sucesso! (número necessário)');
         } else {
           setStatus('success');
-          setMessage(t?.wabaConnectedSuccess || 'Conta do WhatsApp conectada com sucesso!');
+          const messageText = (t?.wabaConnectedSuccess || 'Conta do WhatsApp conectada com sucesso!') + shopInfo + wabaInfo;
+          setMessage(messageText);
           toast.success(t?.wabaConnectedSuccess || 'Conta do WhatsApp conectada com sucesso!');
         }
         

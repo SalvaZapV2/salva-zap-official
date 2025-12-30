@@ -158,6 +158,18 @@ class ApiClient {
     });
   }
 
+  async syncPhoneNumbers(wabaAccountId: string): Promise<{ id: string; wabaId: string; phoneId: string; displayNumber: string; hasPhoneNumbers: boolean }> {
+    return this.request<{ id: string; wabaId: string; phoneId: string; displayNumber: string; hasPhoneNumbers: boolean }>(`/waba/${wabaAccountId}/sync-phone-numbers`, {
+      method: 'POST',
+    });
+  }
+
+  async disconnectWaba(wabaAccountId: string): Promise<{ success: boolean; message: string }> {
+    return this.request<{ success: boolean; message: string }>(`/waba/${wabaAccountId}`, {
+      method: 'DELETE',
+    });
+  }
+
   // Messages
   async sendMessage(
     wabaAccountId: string,

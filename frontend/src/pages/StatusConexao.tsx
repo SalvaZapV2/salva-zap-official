@@ -186,12 +186,56 @@ const StatusConexao = () => {
     }
   };
 
-  const handleDisconnect = () => {
-    toast({
-      title: "Funcionalidade em desenvolvimento",
-      description: "Desconexão será habilitada em breve",
-      variant: "destructive",
-    });
+  const handleDisconnect = async () => {
+    if (!activeWaba) {
+      toast({ title: "Nenhuma WABA selecionada", description: "Selecione uma loja com WABA para desconectar", variant: "destructive" });
+      return;
+    }
+
+    // Confirm before disconnecting
+    if (!window.confirm('Tem certeza que deseja desconectar esta conta do WhatsApp? Esta ação não pode ser desfeita e você precisará conectar novamente.')) {
+      return;
+    }
+
+    toast({ title: "Desconectando...", description: "Removendo a conexão com a Meta" });
+
+    try {
+      await api.disconnectWaba(activeWaba.id);
+      toast({ title: "Desconectado com sucesso", description: "A conta do WhatsApp foi desconectada" });
+      // Refresh shops/WABA data
+      await refetchShops();
+      // Navigate to connect page
+      window.location.href = '/conectar-whatsapp';
+    } catch (err: any) {
+      toast({ title: "Falha ao desconectar", description: err?.message || "Tente novamente mais tarde", variant: "destructive" });
+    }
+  };
+
+  const handleSyncPhoneNumbers = async () => {
+    if (!activeWaba) {
+      toast({ title: "Nenhuma WABA selecionada", description: "Selecione uma loja com WABA para sincronizar", variant: "destructive" });
+      return;
+    }
+
+    toast({ title: "Sincronizando...", description: "Buscando números de telefone atualizados da Meta" });
+
+    try {
+      const result = await api.syncPhoneNumbers(activeWaba.id);
+      // Refresh shops/WABA data
+      await refetchShops();
+      
+      if (result.hasPhoneNumbers) {
+        toast({ title: "Sincronizado com sucesso", description: `Número encontrado: ${result.displayNumber}` });
+      } else {
+        toast({ 
+          title: "Nenhum número encontrado", 
+          description: "Adicione um número no Meta Business Manager e tente novamente",
+          variant: "default"
+        });
+      }
+    } catch (err: any) {
+      toast({ title: "Falha ao sincronizar", description: err?.message || "Tente novamente mais tarde", variant: "destructive" });
+    }
   };
 
   return (
